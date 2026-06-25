@@ -1,5 +1,11 @@
 package com.qtpie.simplepuzzle.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -9,7 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -18,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
@@ -172,6 +183,7 @@ class JigsawShape(
  * @param emptyColor The background color of the board where pieces are missing.
  * @param pieceBorderColor The color of the stroke around visible jigsaw pieces.
  * @param slotBorderColor The color of the faint outline shown for missing pieces.
+ * @param shakeTrigger A key to trigger a shake animation on the board.
  * @param content The composable content to be split into puzzle pieces.
  */
 @Composable
@@ -183,13 +195,34 @@ fun JigsawBoard(
     emptyColor: Color = Color(0xFF1A1A2E),
     pieceBorderColor: Color = Color.White.copy(alpha = 0.4f),
     slotBorderColor: Color = Color.White.copy(alpha = 0.15f),
+    shakeTrigger: Any? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val configs = remember(rows, cols) {
         generateConfigs(rows, cols)
     }
 
-    BoxWithConstraints(modifier = modifier) {
+    // Shake Animation Logic
+    var shakeValue by remember { mutableStateOf(0f) }
+    val shakeOffset by animateFloatAsState(
+        targetValue = shakeValue,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessMedium)
+    )
+
+    LaunchedEffect(shakeTrigger) {
+        if (shakeTrigger != null) {
+            shakeValue = 10f
+            kotlinx.coroutines.delay(100)
+            shakeValue = -10f
+            kotlinx.coroutines.delay(100)
+            shakeValue = 0f
+        }
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .graphicsLayer { translationX = shakeOffset }
+    ) {
         val boardWidth = maxWidth
         val boardHeight = maxHeight
         
@@ -235,7 +268,13 @@ fun JigsawBoard(
             val col = index % cols
             val shape = remember(config, tabSizePx, paddingPx) { JigsawShape(config, tabSizePx, paddingPx) }
 
-            if (visiblePieces.contains(index)) {
+            AnimatedVisibility(
+                visible = visiblePieces.contains(index),
+                enter = fadeIn() + scaleIn(
+                    initialScale = 0.5f,
+                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                )
+            ) {
                 Box(
                     modifier = Modifier
                         .offset(x = cellWidth * col - paddingDp, y = cellHeight * row - paddingDp)
