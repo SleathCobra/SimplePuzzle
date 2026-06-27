@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+.idea/planningMode.xml
+.idea/deviceManager.xml
