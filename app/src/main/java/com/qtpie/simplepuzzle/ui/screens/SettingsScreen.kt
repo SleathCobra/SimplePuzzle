@@ -15,7 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,9 +45,7 @@ fun SettingsScreen(
             )
         },
         containerColor = Color.Transparent,
-        modifier = Modifier.background(
-            Brush.verticalGradient(listOf(Color(0xFF5A4FCF), Color(0xFFFF4B5C)))
-        )
+        modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
             modifier = Modifier

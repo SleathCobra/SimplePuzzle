@@ -4,7 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,44 +46,53 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
     val userProfile by viewModel.userProfile.collectAsState()
     val puzzles by viewModel.puzzles.collectAsState()
 
-    NavHost(navController = navController, startDestination = Screen.Start.route) {
-        composable(Screen.Start.route) {
-            StartScreen(
-                onPlayClick = { navController.navigate(Screen.Gallery.route) },
-                onSettingsClick = { navController.navigate(Screen.Settings.route) }
-            )
-        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            painter = painterResource(id = R.drawable.bg),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
+        )
         
-        composable(Screen.Gallery.route) {
-            GalleryScreen(
-                puzzles = puzzles,
-                completedCount = userProfile.puzzlesCompleted,
-                totalCount = userProfile.totalPuzzles,
-                onPuzzleSelect = { puzzle ->
-                    viewModel.selectPuzzle(puzzle)
-                    navController.navigate(Screen.Game.route)
-                },
-                onBack = { navController.popBackStack() }
-            )
-        }
+        NavHost(navController = navController, startDestination = Screen.Start.route) {
+            composable(Screen.Start.route) {
+                StartScreen(
+                    onPlayClick = { navController.navigate(Screen.Gallery.route) },
+                    onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                )
+            }
+            
+            composable(Screen.Gallery.route) {
+                GalleryScreen(
+                    puzzles = puzzles,
+                    completedCount = userProfile.puzzlesCompleted,
+                    totalCount = userProfile.totalPuzzles,
+                    onPuzzleSelect = { puzzle ->
+                        viewModel.selectPuzzle(puzzle)
+                        navController.navigate(Screen.Game.route)
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
 
-        composable(Screen.Game.route) {
-            GameScreen(
-                state = uiState,
-                onAnswerSelected = { viewModel.onAnswerSelected(it) },
-                onReset = { uiState.currentPuzzle?.let { viewModel.selectPuzzle(it) } },
-                onBack = { navController.popBackStack() }
-            )
-        }
+            composable(Screen.Game.route) {
+                GameScreen(
+                    state = uiState,
+                    onAnswerSelected = { viewModel.onAnswerSelected(it) },
+                    onReset = { uiState.currentPuzzle?.let { viewModel.selectPuzzle(it) } },
+                    onBack = { navController.popBackStack() }
+                )
+            }
 
-        composable(Screen.Settings.route) {
-            SettingsScreen(
-                userProfile = userProfile,
-                settings = settings,
-                onSettingsChange = { viewModel.updateSettings(it) },
-                onResetProgress = { viewModel.resetProgress() },
-                onBack = { navController.popBackStack() }
-            )
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    userProfile = userProfile,
+                    settings = settings,
+                    onSettingsChange = { viewModel.updateSettings(it) },
+                    onResetProgress = { viewModel.resetProgress() },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

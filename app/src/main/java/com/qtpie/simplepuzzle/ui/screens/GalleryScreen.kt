@@ -18,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -52,9 +51,7 @@ fun GalleryScreen(
             )
         },
         containerColor = Color.Transparent,
-        modifier = Modifier.background(
-            Brush.verticalGradient(listOf(Color(0xFF5A4FCF), Color(0xFFFF4B5C)))
-        )
+        modifier = Modifier.fillMaxSize()
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -81,34 +78,42 @@ fun GalleryScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            ScrollableTabRow(
-                selectedTabIndex = categories.indexOf(selectedCategory),
-                containerColor = Color.Transparent,
-                contentColor = Color.White,
-                edgePadding = 0.dp,
-                divider = {},
-                indicator = {}
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp)),
+                color = Color.Black.copy(alpha = 0.2f)
             ) {
-                categories.forEach { category ->
-                    val isSelected = selectedCategory == category
-                    Tab(
-                        selected = isSelected,
-                        onClick = { selectedCategory = category },
-                        text = {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isSelected) Color.White else Color.Transparent)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    category,
-                                    color = if (isSelected) Color(0xFF5A4FCF) else Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
+                ScrollableTabRow(
+                    selectedTabIndex = categories.indexOf(selectedCategory),
+                    containerColor = Color.Transparent,
+                    contentColor = Color.White,
+                    edgePadding = 0.dp,
+                    divider = {},
+                    indicator = {}
+                ) {
+                    categories.forEach { category ->
+                        val isSelected = selectedCategory == category
+                        Tab(
+                            selected = isSelected,
+                            onClick = { selectedCategory = category },
+                            text = {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(vertical = 8.dp, horizontal = 4.dp)
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(if (isSelected) Color.White else Color.Transparent)
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        category,
+                                        color = if (isSelected) Color(0xFF5A4FCF) else Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
 
@@ -147,17 +152,25 @@ fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
             modifier = Modifier
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.2f))
+                .background(Color.White.copy(alpha = 0.1f))
                 .border(
-                    width = if (puzzle.isCompleted) 4.dp else 0.dp,
-                    color = if (puzzle.isCompleted) Color(0xFFFFD700) else Color.Transparent,
+                    width = 2.dp,
+                    color = Color.White.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(20.dp)
+                )
+                .padding(4.dp)
+                .border(
+                    width = if (puzzle.isCompleted) 3.dp else 0.dp,
+                    color = if (puzzle.isCompleted) Color(0xFFFFD700).copy(alpha = 0.8f) else Color.Transparent,
+                    shape = RoundedCornerShape(16.dp)
                 )
         ) {
             Image(
                 painter = painterResource(id = puzzle.imageResId),
                 contentDescription = puzzle.name,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(16.dp)),
                 contentScale = ContentScale.Crop,
                 alpha = if (puzzle.isLocked) 0.5f else 1.0f
             )
@@ -208,12 +221,17 @@ fun ComingSoonCard() {
             modifier = Modifier
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.Gray.copy(alpha = 0.3f)),
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(
+                    width = 2.dp,
+                    color = Color.White.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(20.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White.copy(alpha = 0.5f))
+            Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White.copy(alpha = 0.3f))
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Coming Soon", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+        Text("Coming Soon", color = Color.White.copy(alpha = 0.5f), fontSize = 16.sp)
     }
 }
