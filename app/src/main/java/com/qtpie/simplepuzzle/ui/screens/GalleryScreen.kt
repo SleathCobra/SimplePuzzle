@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -80,7 +81,7 @@ fun GalleryScreen(
 
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .wrapContentWidth()
                     .clip(RoundedCornerShape(24.dp)),
                 color = Color.Black.copy(alpha = 0.2f)
             ) {
@@ -151,26 +152,32 @@ fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .aspectRatio(1f)
+                .shadow(
+                    elevation = 8.dp,
+                    shape = RoundedCornerShape(20.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.3f),
+                    spotColor = Color.Black.copy(alpha = 0.5f)
+                )
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.1f))
+                .background(Color.White.copy(alpha = 0.15f))
                 .border(
-                    width = 2.dp,
-                    color = Color.White.copy(alpha = 0.3f),
+                    width = 1.5.dp,
+                    color = Color.White.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(20.dp)
                 )
                 .padding(4.dp)
-                .border(
-                    width = if (puzzle.isCompleted) 3.dp else 0.dp,
-                    color = if (puzzle.isCompleted) Color(0xFFFFD700).copy(alpha = 0.8f) else Color.Transparent,
-                    shape = RoundedCornerShape(16.dp)
-                )
         ) {
             Image(
                 painter = painterResource(id = puzzle.imageResId),
                 contentDescription = puzzle.name,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(16.dp)),
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        width = if (puzzle.isCompleted) 3.dp else 0.dp,
+                        color = if (puzzle.isCompleted) Color(0xFFFFD700).copy(alpha = 0.9f) else Color.Transparent,
+                        shape = RoundedCornerShape(16.dp)
+                    ),
                 contentScale = ContentScale.Crop,
                 alpha = if (puzzle.isLocked) 0.5f else 1.0f
             )

@@ -2,15 +2,16 @@ package com.qtpie.simplepuzzle.ui.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -19,19 +20,47 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qtpie.simplepuzzle.R
+import com.qtpie.simplepuzzle.ui.components.JigsawBoard
+import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 @Composable
 fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartbeat")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.1f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = FastOutSlowInEasing),
+            animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "scale"
     )
+
+    // Animated puzzle preview
+    val previewImageRes = remember { R.drawable.puzzle }
+    var unlockedPieces by remember { mutableStateOf((0 until 16).filter { Random.nextBoolean() }.toSet()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1500)
+            val total = 16
+            val current = unlockedPieces.toMutableSet()
+            if (current.size > 12 || (current.size > 4 && Random.nextBoolean())) {
+                // Remove a random piece
+                if (current.isNotEmpty()) {
+                    current.remove(current.random())
+                }
+            } else {
+                // Add a random piece
+                val remaining = (0 until total).toSet() - current
+                if (remaining.isNotEmpty()) {
+                    current.add(remaining.random())
+                }
+            }
+            unlockedPieces = current
+        }
+    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -76,15 +105,28 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Placeholder for the central image with puzzle pieces
-            Image(
-                painter = painterResource(id = R.drawable.puzzle), // Should ideally be a specialized graphic
-                contentDescription = null,
+            // 3D Puzzle Preview instead of static image
+            Box(
                 modifier = Modifier
                     .size(280.dp)
-                    .padding(20.dp),
-                contentScale = ContentScale.Fit
-            )
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.2f))
+                    .padding(8.dp)
+            ) {
+                JigsawBoard(
+                    rows = 4,
+                    cols = 4,
+                    visiblePieces = unlockedPieces,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Image(
+                        painter = painterResource(id = previewImageRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(60.dp))
 

@@ -92,9 +92,7 @@ fun GameScreen(
                     cols = if (puzzle.totalPieces == 16) 4 else 6,
                     visiblePieces = state.unlockedPieces,
                     shakeTrigger = state.shakeTrigger,
-                    modifier = Modifier.fillMaxSize(),
-                    pieceBorderColor = Color.White.copy(alpha = 0.6f),
-                    slotBorderColor = Color.White.copy(alpha = 0.1f)
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     Image(
                         painter = painterResource(id = puzzle.imageResId),

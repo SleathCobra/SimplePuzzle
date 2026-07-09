@@ -20,12 +20,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
@@ -142,8 +147,6 @@ fun JigsawBoard(
     visiblePieces: Set<Int>,
     modifier: Modifier = Modifier,
     emptyColor: Color = Color(0xFF1A1A2E),
-    pieceBorderColor: Color = Color.White.copy(alpha = 0.4f),
-    slotBorderColor: Color = Color.White.copy(alpha = 0.15f),
     shakeTrigger: Any? = null,
     onPiecePlaced: (Int) -> Unit = {},
     onPuzzleComplete: () -> Unit = {},
@@ -221,7 +224,21 @@ fun JigsawBoard(
                     modifier = Modifier
                         .offset(x = cellWidth * col - paddingDp, y = cellHeight * row - paddingDp)
                         .size(width = pieceWidthDp, height = pieceHeightDp)
-                        .border(1.dp, slotBorderColor, shape)
+                        .background(Color.Black.copy(alpha = 0.25f), shape)
+                        .border(
+                            width = 4.dp,
+                            brush = Brush.linearGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.8f),
+                                    Color.Black.copy(alpha = 0.4f),
+                                    Color.White.copy(alpha = 0.1f),
+                                    Color.White.copy(alpha = 0.3f)
+                                ),
+                                start = Offset.Zero,
+                                end = Offset.Infinite
+                            ),
+                            shape = shape
+                        )
                 )
             }
         }
@@ -254,8 +271,28 @@ fun JigsawBoard(
                         y = cellHeight * row - paddingDp + dragOffset.y.dp
                     )
                     .size(width = pieceWidthDp, height = pieceHeightDp)
+                    .shadow(
+                        elevation = 10.dp,
+                        shape = shape,
+                        ambientColor = Color.Black.copy(alpha = 0.6f),
+                        spotColor = Color.Black
+                    )
                     .clip(shape)
-                    .border(1.dp, pieceBorderColor, shape)
+                    .background(Color.White.copy(alpha = 0.05f)) // Subtle base for depth
+                    .border(
+                        width = 2.5.dp,
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.95f),
+                                Color.White.copy(alpha = 0.2f),
+                                Color.Black.copy(alpha = 0.2f),
+                                Color.Black.copy(alpha = 0.7f)
+                            ),
+                            start = Offset.Zero,
+                            end = Offset.Infinite
+                        ),
+                        shape = shape
+                    )
 
                 // Add drag functionality if enabled
                 val finalModifier = if (enableDrag) {
@@ -307,6 +344,46 @@ fun JigsawBoard(
                                 layout(constraints.maxWidth, constraints.maxHeight) {
                                     placeable.placeRelative(offsetX, offsetY)
                                 }
+                            }
+                            .graphicsLayer {
+                                // Add a subtle inner shadow/bevel effect by drawing a semi-transparent overlay
+                                // with a lighting direction (top-left light, bottom-right shadow)
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                // Enhanced Bevel Effect
+                                val path = (shape.createOutline(this.size, this.layoutDirection, this) as Outline.Generic).path
+                                
+                                // Outer Highlight (Top-Left)
+                                drawPath(
+                                    path = path,
+                                    brush = Brush.linearGradient(
+                                        0.0f to Color.White.copy(alpha = 0.6f),
+                                        0.4f to Color.Transparent,
+                                        start = Offset.Zero,
+                                        end = Offset(this.size.width, this.size.height)
+                                    ),
+                                    style = Stroke(width = 5.dp.toPx())
+                                )
+
+                                // Inner Shadow (Bottom-Right)
+                                drawPath(
+                                    path = path,
+                                    brush = Brush.linearGradient(
+                                        0.6f to Color.Transparent,
+                                        1.0f to Color.Black.copy(alpha = 0.6f),
+                                        start = Offset.Zero,
+                                        end = Offset(this.size.width, this.size.height)
+                                    ),
+                                    style = Stroke(width = 5.dp.toPx())
+                                )
+                                
+                                // Rim Light (Thin edge)
+                                drawPath(
+                                    path = path,
+                                    color = Color.White.copy(alpha = 0.3f),
+                                    style = Stroke(width = 1.dp.toPx())
+                                )
                             }
                     ) {
                         content()
