@@ -26,7 +26,7 @@ data class GameUiState(
 )
 
 data class UserProfileState(
-    val name: String = "AlexPuzzles",
+    val name: String = "Angel",
     val totalScore: Int = 15420,
     val puzzlesCompleted: Int = 3,
     val totalPuzzles: Int = 12,

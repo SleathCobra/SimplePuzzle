@@ -86,13 +86,23 @@ fun GameScreen(
                 Column {
                     Text("SCORE", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("${state.score}", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Black)
-                    if (state.combo > 1) {
-                        Surface(
-                            color = Color(0xFFFFD700),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.padding(top = 4.dp)
-                        ) {
-                            Text("COMBO X${state.combo}", color = Color.Black, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    
+                    // Fixed height container to reserve space for the combo badge
+                    Box(modifier = Modifier.height(32.dp)) {
+                        if (state.combo > 1) {
+                            Surface(
+                                color = Color(0xFFFFD700),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Text(
+                                    text = "COMBO X${state.combo}", 
+                                    color = Color.Black, 
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), 
+                                    fontWeight = FontWeight.Bold, 
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -167,7 +177,7 @@ fun GameScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(100.dp),
+                    .height(80.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
             ) {
@@ -224,11 +234,11 @@ fun FlowingProgressBar(current: Int, total: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .shadow(8.dp, RoundedCornerShape(24.dp))
-            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
-            .border(2.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp)),
+            .height(40.dp)
+            .shadow(8.dp, RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+            .border(2.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(20.dp)),
         contentAlignment = Alignment.Center
     ) {
         // Progress Fill
@@ -267,7 +277,7 @@ fun formatTime(seconds: Int): String {
 fun MathOptionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        modifier = modifier.height(60.dp),
+        modifier = modifier.height(52.dp),
         shape = RoundedCornerShape(16.dp),
         color = Color.White.copy(alpha = 0.15f),
         tonalElevation = 8.dp
