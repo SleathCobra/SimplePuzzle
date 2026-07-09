@@ -1,20 +1,23 @@
 package com.qtpie.simplepuzzle.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -41,7 +44,7 @@ fun GameScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text(puzzle.name, fontWeight = FontWeight.Bold, color = Color.White) },
+                title = { Text(puzzle.name.uppercase(), fontWeight = FontWeight.Black, color = Color.White, letterSpacing = 2.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
@@ -63,18 +66,51 @@ fun GameScreen(
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Header: Score (Left), Timer & Coins (Right)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.Top
             ) {
+                // Left: Score
                 Column {
-                    Text("Score: ${state.score}", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    Text("SCORE", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("${state.score}", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Black)
                     if (state.combo > 1) {
-                        Text("Combo x${state.combo}", color = Color(0xFFFFD700), fontWeight = FontWeight.Bold)
+                        Surface(
+                            color = Color(0xFFFFD700),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text("COMBO X${state.combo}", color = Color.Black, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
                     }
                 }
-                Text("${state.unlockedPieces.size} / ${puzzle.totalPieces} Pieces", color = Color.White)
+
+                // Right: Timer & Coins
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(formatTime(state.timeElapsed), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        text = "BEST: ${state.bestTime?.let { formatTime(it) } ?: "--:--"}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💰", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("${state.coins}", color = Color(0xFFFFD700), fontWeight = FontWeight.Black)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -161,14 +197,69 @@ fun GameScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
             
-            LinearProgressIndicator(
-                progress = { state.unlockedPieces.size.toFloat() / puzzle.totalPieces },
-                modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)),
-                color = Color(0xFF06D6A0),
-                trackColor = Color.White.copy(alpha = 0.1f)
+            FlowingProgressBar(
+                current = state.unlockedPieces.size,
+                total = puzzle.totalPieces
             )
         }
     }
+}
+
+@Composable
+fun FlowingProgressBar(current: Int, total: Int) {
+    val progress = if (total > 0) current.toFloat() / total else 0f
+    val infiniteTransition = rememberInfiniteTransition(label = "flow")
+    
+    val offset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(20000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "offset"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .shadow(8.dp, RoundedCornerShape(24.dp))
+            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+            .border(2.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        // Progress Fill
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress)
+                .fillMaxHeight()
+                .align(Alignment.CenterStart)
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFF00F2FE), Color(0xFF4FACFE), Color(0xFF00F2FE)),
+                        start = Offset(offset, 0f),
+                        end = Offset(offset + 400f, 400f)
+                    )
+                )
+        )
+        
+        // Text Overlay
+        Text(
+            text = "$current / $total PIECES COLLECTED",
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 14.sp,
+            letterSpacing = 1.sp
+        )
+    }
+}
+
+fun formatTime(seconds: Int): String {
+    val mins = seconds / 60
+    val secs = seconds % 60
+    return "%02d:%02d".format(mins, secs)
 }
 
 @Composable

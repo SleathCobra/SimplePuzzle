@@ -46,16 +46,21 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
             delay(1500)
             val total = 16
             val current = unlockedPieces.toMutableSet()
-            if (current.size > 12 || (current.size > 4 && Random.nextBoolean())) {
-                // Remove a random piece
-                if (current.isNotEmpty()) {
-                    current.remove(current.random())
-                }
-            } else {
-                // Add a random piece
-                val remaining = (0 until total).toSet() - current
-                if (remaining.isNotEmpty()) {
-                    current.add(remaining.random())
+            
+            // Modify multiple pieces at once (2-4 pieces)
+            val countToChange = Random.nextInt(2, 5)
+            repeat(countToChange) {
+                if (current.size > 10 || (current.size > 4 && Random.nextBoolean())) {
+                    // Remove a random piece
+                    if (current.isNotEmpty()) {
+                        current.remove(current.random())
+                    }
+                } else {
+                    // Add a random piece
+                    val remaining = (0 until total).toSet() - current
+                    if (remaining.isNotEmpty()) {
+                        current.add(remaining.random())
+                    }
                 }
             }
             unlockedPieces = current
@@ -65,24 +70,12 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        IconButton(
-            onClick = onSettingsClick,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 16.dp)
-        ) {
-            androidx.compose.material3.Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.Settings,
-                contentDescription = "Settings",
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 60.dp), // Shifted upwards
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top // Push items to the top
         ) {
             Text(
                 text = "Jigsaw",
@@ -103,12 +96,12 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
                 fontSize = 18.sp
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
-            // 3D Puzzle Preview instead of static image
+            // 3D Puzzle Preview
             Box(
                 modifier = Modifier
-                    .size(280.dp)
+                    .size(260.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color.Black.copy(alpha = 0.2f))
                     .padding(8.dp)
@@ -128,25 +121,52 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(60.dp))
+            Spacer(modifier = Modifier.weight(1f))
 
-            Button(
-                onClick = onPlayClick,
-                modifier = Modifier
-                    .width(200.dp)
-                    .height(80.dp)
-                    .graphicsLayer(scaleX = scale, scaleY = scale)
-                    .padding(8.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E7FF)),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+            Row(
+                modifier = Modifier.padding(bottom = 60.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Text(
-                    "PLAY",
-                    color = Color(0xFF5A4FCF),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Button(
+                    onClick = onPlayClick,
+                    modifier = Modifier
+                        .width(200.dp)
+                        .height(80.dp)
+                        .graphicsLayer(scaleX = scale, scaleY = scale)
+                        .padding(8.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE0E7FF)),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
+                ) {
+                    Text(
+                        "PLAY",
+                        color = Color(0xFF5A4FCF),
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Small white settings button next to Play
+                Surface(
+                    onClick = onSettingsClick,
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Color(0xFF5A4FCF),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
             }
         }
     }

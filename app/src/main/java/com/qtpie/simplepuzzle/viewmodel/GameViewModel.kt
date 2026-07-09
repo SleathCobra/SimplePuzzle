@@ -1,12 +1,16 @@
 package com.qtpie.simplepuzzle.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.model.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 data class GameUiState(
     val currentQuestion: MathQuestion = generateMathQuestion(),
@@ -15,14 +19,18 @@ data class GameUiState(
     val combo: Int = 1,
     val shakeTrigger: Int = 0,
     val currentPuzzle: PuzzleInfo? = null,
-    val isGameOver: Boolean = false
+    val isGameOver: Boolean = false,
+    val coins: Int = 0,
+    val timeElapsed: Int = 0,
+    val bestTime: Int? = null
 )
 
 data class UserProfileState(
     val name: String = "AlexPuzzles",
     val totalScore: Int = 15420,
     val puzzlesCompleted: Int = 3,
-    val totalPuzzles: Int = 12
+    val totalPuzzles: Int = 12,
+    val totalCoins: Int = 150
 )
 
 class GameViewModel : ViewModel() {
@@ -44,15 +52,31 @@ class GameViewModel : ViewModel() {
     ))
     val puzzles: StateFlow<List<PuzzleInfo>> = _puzzles.asStateFlow()
 
+    private var timerJob: Job? = null
+
     fun selectPuzzle(puzzle: PuzzleInfo) {
+        timerJob?.cancel()
         _uiState.update { it.copy(
             currentPuzzle = puzzle,
             unlockedPieces = emptySet(),
             score = 0,
             combo = 1,
             isGameOver = false,
-            currentQuestion = generateMathQuestion(_settings.value.difficulty)
+            currentQuestion = generateMathQuestion(_settings.value.difficulty),
+            coins = 0,
+            timeElapsed = 0,
+            bestTime = puzzle.bestTime
         ) }
+        startTimer()
+    }
+
+    private fun startTimer() {
+        timerJob = viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                _uiState.update { it.copy(timeElapsed = it.timeElapsed + 1) }
+            }
+        }
     }
 
     fun onAnswerSelected(option: Int) {
@@ -60,10 +84,12 @@ class GameViewModel : ViewModel() {
         if (option == currentState.currentQuestion.answer) {
             val newScore = currentState.score + (10 * currentState.combo)
             val newCombo = currentState.combo + 1
+            val coinReward = 5 * currentState.combo
             unlockRandomPiece()
             _uiState.update { it.copy(
                 score = newScore,
                 combo = newCombo,
+                coins = it.coins + coinReward,
                 currentQuestion = generateMathQuestion(_settings.value.difficulty)
             ) }
         } else {
@@ -84,9 +110,36 @@ class GameViewModel : ViewModel() {
             _uiState.update { it.copy(unlockedPieces = nextUnlocked) }
             
             if (nextUnlocked.size == totalPieces) {
-                _uiState.update { it.copy(isGameOver = true) }
-                _userProfile.update { it.copy(puzzlesCompleted = it.puzzlesCompleted + 1) }
+                completePuzzle()
             }
+        }
+    }
+
+    private fun completePuzzle() {
+        timerJob?.cancel()
+        val finalTime = _uiState.value.timeElapsed
+        val currentPuzzle = _uiState.value.currentPuzzle
+        
+        _uiState.update { it.copy(isGameOver = true) }
+        
+        _userProfile.update { 
+            it.copy(
+                puzzlesCompleted = it.puzzlesCompleted + 1,
+                totalCoins = it.totalCoins + _uiState.value.coins
+            ) 
+        }
+
+        if (currentPuzzle != null) {
+            val newBestTime = if (currentPuzzle.bestTime == null || finalTime < currentPuzzle.bestTime) finalTime else currentPuzzle.bestTime
+            
+            _puzzles.update { list ->
+                list.map { p ->
+                    if (p.id == currentPuzzle.id) {
+                        p.copy(isCompleted = true, bestTime = newBestTime)
+                    } else p
+                }
+            }
+            _uiState.update { it.copy(bestTime = newBestTime) }
         }
     }
 
