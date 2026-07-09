@@ -33,7 +33,9 @@ fun GalleryScreen(
     puzzles: List<PuzzleInfo>,
     completedCount: Int,
     totalCount: Int,
+    totalCoins: Int,
     onPuzzleSelect: (PuzzleInfo) -> Unit,
+    onUnlock: (PuzzleInfo) -> Unit,
     onBack: () -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
@@ -46,6 +48,16 @@ fun GalleryScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                    }
+                },
+                actions = {
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💰", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("$totalCoins", color = Color(0xFFFFD700), fontWeight = FontWeight.Black)
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
@@ -129,7 +141,14 @@ fun GalleryScreen(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(filteredPuzzles) { puzzle ->
-                    PuzzleCard(puzzle = puzzle, onClick = { if (!puzzle.isLocked) onPuzzleSelect(puzzle) })
+                    PuzzleCard(
+                        puzzle = puzzle, 
+                        canAfford = totalCoins >= puzzle.unlockCost,
+                        onClick = { 
+                            if (!puzzle.isLocked) onPuzzleSelect(puzzle)
+                            else onUnlock(puzzle)
+                        }
+                    )
                 }
                 
                 // Add a "Coming Soon" item if needed
@@ -142,7 +161,7 @@ fun GalleryScreen(
 }
 
 @Composable
-fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
+fun PuzzleCard(puzzle: PuzzleInfo, canAfford: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .clickable(onClick = onClick)
@@ -182,6 +201,25 @@ fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
                 alpha = if (puzzle.isLocked) 0.5f else 1.0f
             )
 
+            // Top-right Score/Unlock info
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                if (puzzle.isLocked) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("💰", fontSize = 10.sp)
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("${puzzle.unlockCost}", color = if (canAfford) Color(0xFFFFD700) else Color.Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Text("HI: ${puzzle.maxScore}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
             if (puzzle.isLocked) {
                 Box(
                     modifier = Modifier
@@ -199,9 +237,9 @@ fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
                     contentDescription = "Completed",
                     tint = Color(0xFFFFD700),
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        .align(Alignment.BottomEnd)
                         .padding(8.dp)
-                        .size(30.dp)
+                        .size(24.dp)
                 )
             }
         }
@@ -212,6 +250,9 @@ fun PuzzleCard(puzzle: PuzzleInfo, onClick: () -> Unit) {
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp
         )
+        if (!puzzle.isLocked && puzzle.bestTime != null) {
+            Text("Best: ${formatTime(puzzle.bestTime)}", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+        }
         if (puzzle.isCompleted) {
             Text("✓ Complete", color = Color(0xFF00FF00), fontSize = 12.sp)
         }

@@ -67,10 +67,12 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                     puzzles = puzzles,
                     completedCount = userProfile.puzzlesCompleted,
                     totalCount = userProfile.totalPuzzles,
+                    totalCoins = userProfile.totalCoins,
                     onPuzzleSelect = { puzzle ->
                         viewModel.selectPuzzle(puzzle)
                         navController.navigate(Screen.Game.route)
                     },
+                    onUnlock = { viewModel.unlockPuzzle(it) },
                     onBack = { navController.popBackStack() }
                 )
             }
@@ -78,6 +80,7 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
             composable(Screen.Game.route) {
                 GameScreen(
                     state = uiState,
+                    totalCoins = userProfile.totalCoins,
                     onAnswerSelected = { viewModel.onAnswerSelected(it) },
                     onReset = { uiState.currentPuzzle?.let { viewModel.selectPuzzle(it) } },
                     onBack = { navController.popBackStack() }

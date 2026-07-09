@@ -44,17 +44,18 @@ class GameViewModel : ViewModel() {
     val userProfile: StateFlow<UserProfileState> = _userProfile.asStateFlow()
 
     private val _puzzles = MutableStateFlow(listOf(
-        PuzzleInfo(1, "Cosmic Journey", R.drawable.puzzle, 30, false, false, "Space"),
-        PuzzleInfo(2, "Aqua Dreams", R.drawable.puzzle, 30, false, false, "Nature"),
-        PuzzleInfo(3, "Fantasy Castle", R.drawable.puzzle, 16, false, true, "Fantasy"),
-        PuzzleInfo(4, "Hidden City", R.drawable.puzzle, 30, true, false, "Fantasy"),
-        PuzzleInfo(5, "Forest Path", R.drawable.puzzle, 16, true, false, "Nature")
+        PuzzleInfo(1, "Cosmic Journey", R.drawable.puzzle, 30, false, false, "Space", unlockCost = 0),
+        PuzzleInfo(2, "Aqua Dreams", R.drawable.puzzle, 30, false, false, "Nature", unlockCost = 0),
+        PuzzleInfo(3, "Fantasy Castle", R.drawable.puzzle, 16, false, true, "Fantasy", unlockCost = 0),
+        PuzzleInfo(4, "Hidden City", R.drawable.puzzle, 30, true, false, "Fantasy", unlockCost = 100),
+        PuzzleInfo(5, "Forest Path", R.drawable.puzzle, 16, true, false, "Nature", unlockCost = 150)
     ))
     val puzzles: StateFlow<List<PuzzleInfo>> = _puzzles.asStateFlow()
 
     private var timerJob: Job? = null
 
     fun selectPuzzle(puzzle: PuzzleInfo) {
+        if (puzzle.isLocked) return
         timerJob?.cancel()
         _uiState.update { it.copy(
             currentPuzzle = puzzle,
@@ -68,6 +69,19 @@ class GameViewModel : ViewModel() {
             bestTime = puzzle.bestTime
         ) }
         startTimer()
+    }
+
+    fun unlockPuzzle(puzzle: PuzzleInfo) {
+        if (!puzzle.isLocked) return
+        val currentCoins = _userProfile.value.totalCoins
+        if (currentCoins >= puzzle.unlockCost) {
+            _userProfile.update { it.copy(totalCoins = it.totalCoins - puzzle.unlockCost) }
+            _puzzles.update { list ->
+                list.map { p ->
+                    if (p.id == puzzle.id) p.copy(isLocked = false) else p
+                }
+            }
+        }
     }
 
     private fun startTimer() {
@@ -118,6 +132,7 @@ class GameViewModel : ViewModel() {
     private fun completePuzzle() {
         timerJob?.cancel()
         val finalTime = _uiState.value.timeElapsed
+        val finalScore = _uiState.value.score
         val currentPuzzle = _uiState.value.currentPuzzle
         
         _uiState.update { it.copy(isGameOver = true) }
@@ -131,11 +146,12 @@ class GameViewModel : ViewModel() {
 
         if (currentPuzzle != null) {
             val newBestTime = if (currentPuzzle.bestTime == null || finalTime < currentPuzzle.bestTime) finalTime else currentPuzzle.bestTime
+            val newMaxScore = if (finalScore > currentPuzzle.maxScore) finalScore else currentPuzzle.maxScore
             
             _puzzles.update { list ->
                 list.map { p ->
                     if (p.id == currentPuzzle.id) {
-                        p.copy(isCompleted = true, bestTime = newBestTime)
+                        p.copy(isCompleted = true, bestTime = newBestTime, maxScore = newMaxScore)
                     } else p
                 }
             }

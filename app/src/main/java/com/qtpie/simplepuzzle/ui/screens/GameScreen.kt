@@ -33,6 +33,7 @@ import com.qtpie.simplepuzzle.viewmodel.GameUiState
 @Composable
 fun GameScreen(
     state: GameUiState,
+    totalCoins: Int,
     onAnswerSelected: (Int) -> Unit,
     onReset: () -> Unit,
     onBack: () -> Unit
@@ -51,8 +52,17 @@ fun GameScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onReset) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color.White)
+                    Row(
+                        modifier = Modifier.padding(end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("💰", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("$totalCoins", color = Color(0xFFFFD700), fontWeight = FontWeight.Black)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        IconButton(onClick = onReset) {
+                            Icon(Icons.Default.Refresh, contentDescription = "Reset", tint = Color.White)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -87,7 +97,7 @@ fun GameScreen(
                     }
                 }
 
-                // Right: Timer & Coins
+                // Right: Timer
                 Column(horizontalAlignment = Alignment.End) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -99,17 +109,6 @@ fun GameScreen(
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 12.sp
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("💰", fontSize = 16.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("${state.coins}", color = Color(0xFFFFD700), fontWeight = FontWeight.Black)
-                    }
                 }
             }
 
@@ -156,6 +155,13 @@ fun GameScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            FlowingProgressBar(
+                current = state.unlockedPieces.size,
+                total = puzzle.totalPieces
+            )
+
             Spacer(modifier = Modifier.weight(1f))
 
             Card(
@@ -195,12 +201,7 @@ fun GameScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            FlowingProgressBar(
-                current = state.unlockedPieces.size,
-                total = puzzle.totalPieces
-            )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

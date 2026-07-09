@@ -25,7 +25,9 @@ data class PuzzleInfo(
     val isLocked: Boolean = false,
     val isCompleted: Boolean = false,
     val category: String = "All",
-    val bestTime: Int? = null // in seconds
+    val bestTime: Int? = null, // in seconds
+    val maxScore: Int = 0,
+    val unlockCost: Int = 50
 )
 
 fun generateMathQuestion(difficulty: Difficulty = Difficulty.Medium): MathQuestion {
