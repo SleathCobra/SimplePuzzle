@@ -25,7 +25,10 @@ import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 @Composable
-fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
+fun StartScreen(
+    onPlayClick: () -> Unit, 
+    onSettingsClick: () -> Unit
+) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartbeat")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -47,16 +50,14 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
             val total = 16
             val current = unlockedPieces.toMutableSet()
             
-            // Modify multiple pieces at once (2-4 pieces)
+            // Re-enabled multiple piece modification logic
             val countToChange = Random.nextInt(2, 5)
             repeat(countToChange) {
                 if (current.size > 10 || (current.size > 4 && Random.nextBoolean())) {
-                    // Remove a random piece
                     if (current.isNotEmpty()) {
                         current.remove(current.random())
                     }
                 } else {
-                    // Add a random piece
                     val remaining = (0 until total).toSet() - current
                     if (remaining.isNotEmpty()) {
                         current.add(remaining.random())
@@ -73,9 +74,9 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 60.dp), // Shifted upwards
+                .padding(top = 60.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Top // Push items to the top
+            verticalArrangement = Arrangement.Top
         ) {
             Text(
                 text = "Jigsaw",
@@ -149,7 +150,6 @@ fun StartScreen(onPlayClick: () -> Unit, onSettingsClick: () -> Unit) {
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // Small white settings button next to Play
                 Surface(
                     onClick = onSettingsClick,
                     modifier = Modifier.size(56.dp),

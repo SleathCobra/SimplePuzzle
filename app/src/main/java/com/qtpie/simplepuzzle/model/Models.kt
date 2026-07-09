@@ -14,6 +14,7 @@ data class UserSettings(
     val soundEffectsEnabled: Boolean = true,
     val backgroundMusicEnabled: Boolean = true,
     val hapticFeedbackEnabled: Boolean = true,
+    val showSpecialConfetti: Boolean = true,
     val difficulty: Difficulty = Difficulty.Medium
 )
 

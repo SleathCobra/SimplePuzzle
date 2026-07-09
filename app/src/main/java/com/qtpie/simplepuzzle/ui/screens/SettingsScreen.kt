@@ -98,6 +98,10 @@ fun SettingsScreen(
                     onSettingsChange(settings.copy(hapticFeedbackEnabled = it))
                 }
                 Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                SettingsToggle("Stars & Hearts Confetti", settings.showSpecialConfetti) {
+                    onSettingsChange(settings.copy(showSpecialConfetti = it))
+                }
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
