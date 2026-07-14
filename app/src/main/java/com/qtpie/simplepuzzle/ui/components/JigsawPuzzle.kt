@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.random.Random
@@ -129,6 +130,7 @@ fun JigsawBoard(
     modifier: Modifier = Modifier,
     emptyColor: Color = Color(0xFF1A1A2E),
     shakeTrigger: Any? = null,
+    onSound: (SoundEffect) -> Unit = {},
     onPiecePlaced: (Int) -> Unit = {},
     onPuzzleComplete: () -> Unit = {},
     enableDrag: Boolean = false,
@@ -156,7 +158,17 @@ fun JigsawBoard(
     }
 
     // ── Completion Detection ──
+    var previousVisibleCount by remember { mutableStateOf(visiblePieces.size) }
+    
     LaunchedEffect(visiblePieces) {
+        val currentCount = visiblePieces.size
+        if (currentCount > previousVisibleCount) {
+            onSound(SoundEffect.PIECE_PLACED)
+        } else if (currentCount < previousVisibleCount) {
+            onSound(SoundEffect.PIECE_REMOVED)
+        }
+        previousVisibleCount = currentCount
+
         if (visiblePieces.size == totalPieces && totalPieces > 0) {
             onPuzzleComplete()
             vibrate(context, 100)

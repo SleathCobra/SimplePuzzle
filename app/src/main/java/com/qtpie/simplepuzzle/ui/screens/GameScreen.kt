@@ -28,6 +28,7 @@ import com.qtpie.simplepuzzle.model.MathQuestion
 import com.qtpie.simplepuzzle.model.PuzzleInfo
 import com.qtpie.simplepuzzle.ui.components.JigsawBoard
 import com.qtpie.simplepuzzle.viewmodel.GameUiState
+import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,7 +37,8 @@ fun GameScreen(
     totalCoins: Int,
     onAnswerSelected: (Int) -> Unit,
     onReset: () -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onSound: (SoundEffect) -> Unit
 ) {
     val puzzle = state.currentPuzzle ?: return
 
@@ -137,6 +139,7 @@ fun GameScreen(
                     cols = if (puzzle.totalPieces == 16) 4 else 6,
                     visiblePieces = state.unlockedPieces,
                     shakeTrigger = state.shakeTrigger,
+                    onSound = onSound,
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Image(

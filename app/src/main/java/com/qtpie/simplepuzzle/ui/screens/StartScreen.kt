@@ -21,13 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.ui.components.JigsawBoard
+import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 @Composable
 fun StartScreen(
     onPlayClick: () -> Unit, 
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onSound: (SoundEffect) -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartbeat")
     val scale by infiniteTransition.animateFloat(
@@ -48,12 +50,14 @@ fun StartScreen(
         while (true) {
             delay(1500)
             val total = 16
-            val current = unlockedPieces.toMutableSet()
             
-            // Re-enabled multiple piece modification logic
+            // Re-enabled multiple piece modification logic, but applied one-by-one
             val countToChange = Random.nextInt(2, 5)
+            val shouldRemove = unlockedPieces.size > 10 || (unlockedPieces.size > 4 && Random.nextBoolean())
+
             repeat(countToChange) {
-                if (current.size > 10 || (current.size > 4 && Random.nextBoolean())) {
+                val current = unlockedPieces.toMutableSet()
+                if (shouldRemove) {
                     if (current.isNotEmpty()) {
                         current.remove(current.random())
                     }
@@ -63,8 +67,9 @@ fun StartScreen(
                         current.add(remaining.random())
                     }
                 }
+                unlockedPieces = current
+                delay(200) // Small delay between pieces for sound clarity
             }
-            unlockedPieces = current
         }
     }
 
@@ -111,6 +116,7 @@ fun StartScreen(
                     rows = 4,
                     cols = 4,
                     visiblePieces = unlockedPieces,
+                    onSound = onSound,
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Image(

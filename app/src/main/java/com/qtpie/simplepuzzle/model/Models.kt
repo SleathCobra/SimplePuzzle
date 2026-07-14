@@ -10,9 +10,16 @@ data class MathQuestion(
 
 enum class Difficulty { Easy, Medium, Hard }
 
+enum class BackgroundMusicMode {
+    Random, Music1, Music2, Music3, Music4
+}
+
 data class UserSettings(
     val soundEffectsEnabled: Boolean = true,
+    val soundEffectsVolume: Float = 0.8f,
     val backgroundMusicEnabled: Boolean = true,
+    val backgroundMusicVolume: Float = 0.5f,
+    val backgroundMusicMode: BackgroundMusicMode = BackgroundMusicMode.Random,
     val hapticFeedbackEnabled: Boolean = true,
     val showSpecialConfetti: Boolean = true,
     val difficulty: Difficulty = Difficulty.Medium

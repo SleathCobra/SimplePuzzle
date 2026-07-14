@@ -11,13 +11,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.qtpie.simplepuzzle.audio.MusicManager
+import com.qtpie.simplepuzzle.audio.SoundManager
 import com.qtpie.simplepuzzle.ui.screens.*
 import com.qtpie.simplepuzzle.ui.theme.SimplePuzzleTheme
 import com.qtpie.simplepuzzle.viewmodel.GameViewModel
+import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,11 +44,32 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
+    val context = LocalContext.current
+    val soundManager = remember { SoundManager(context) }
+    val musicManager = remember { MusicManager(context) }
+    
     val navController = rememberNavController()
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
     val puzzles by viewModel.puzzles.collectAsState()
+
+    LaunchedEffect(settings) {
+        musicManager.updateSettings(settings)
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.soundEvent.collect { effect ->
+            soundManager.playSound(effect, settings.soundEffectsVolume)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            soundManager.release()
+            musicManager.release()
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Image(
@@ -57,8 +82,15 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
         NavHost(navController = navController, startDestination = Screen.Start.route) {
             composable(Screen.Start.route) {
                 StartScreen(
-                    onPlayClick = { navController.navigate(Screen.Gallery.route) },
-                    onSettingsClick = { navController.navigate(Screen.Settings.route) }
+                    onPlayClick = {
+                        soundManager.playSound(SoundEffect.NAVIGATION)
+                        navController.navigate(Screen.Gallery.route)
+                    },
+                    onSettingsClick = {
+                        soundManager.playSound(SoundEffect.NAVIGATION)
+                        navController.navigate(Screen.Settings.route)
+                    },
+                    onSound = { soundManager.playSound(it) }
                 )
             }
             
@@ -70,10 +102,16 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                     totalCoins = userProfile.totalCoins,
                     onPuzzleSelect = { puzzle ->
                         viewModel.selectPuzzle(puzzle)
-                        navController.navigate(Screen.Game.route)
+                        if (!puzzle.isLocked) {
+                            soundManager.playSound(SoundEffect.NAVIGATION)
+                            navController.navigate(Screen.Game.route)
+                        }
                     },
                     onUnlock = { viewModel.unlockPuzzle(it) },
-                    onBack = { navController.popBackStack() }
+                    onBack = {
+                        soundManager.playSound(SoundEffect.NAVIGATION)
+                        navController.popBackStack()
+                    }
                 )
             }
 
@@ -83,7 +121,11 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                     totalCoins = userProfile.totalCoins,
                     onAnswerSelected = { viewModel.onAnswerSelected(it) },
                     onReset = { uiState.currentPuzzle?.let { viewModel.selectPuzzle(it) } },
-                    onBack = { navController.popBackStack() }
+                    onBack = {
+                        soundManager.playSound(SoundEffect.NAVIGATION)
+                        navController.popBackStack()
+                    },
+                    onSound = { soundManager.playSound(it) }
                 )
             }
 
@@ -93,7 +135,10 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                     settings = settings,
                     onSettingsChange = { viewModel.updateSettings(it) },
                     onResetProgress = { viewModel.resetProgress() },
-                    onBack = { navController.popBackStack() }
+                    onBack = {
+                        soundManager.playSound(SoundEffect.NAVIGATION)
+                        navController.popBackStack()
+                    }
                 )
             }
         }

@@ -6,11 +6,31 @@ import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.model.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+enum class SoundEffect {
+    MENU_CLICK,
+    PUZZLE_LOCKED,
+    PUZZLE_UNLOCKED,
+    ANSWER_CORRECT,
+    ANSWER_WRONG,
+    PIECE_PLACED,
+    PIECE_REMOVED,
+    COINS_ADDED,
+    GAME_COMPLETE,
+    NAVIGATION,
+    SWITCH_ON,
+    SWITCH_OFF,
+    SWITCH_TOGGLE,
+    MANY_FAILS
+}
 
 data class GameUiState(
     val currentQuestion: MathQuestion = generateMathQuestion(),
@@ -43,6 +63,11 @@ class GameViewModel : ViewModel() {
     private val _userProfile = MutableStateFlow(UserProfileState())
     val userProfile: StateFlow<UserProfileState> = _userProfile.asStateFlow()
 
+    private val _soundEvent = MutableSharedFlow<SoundEffect>()
+    val soundEvent: SharedFlow<SoundEffect> = _soundEvent.asSharedFlow()
+
+    private var wrongAnswersInARow = 0
+
     private val _puzzles = MutableStateFlow(listOf(
         PuzzleInfo(1, "Cosmic Journey", R.drawable.puzzle, 30, false, false, "Space", unlockCost = 0),
         PuzzleInfo(2, "Aqua Dreams", R.drawable.puzzle, 30, false, false, "Nature", unlockCost = 0),
@@ -54,8 +79,20 @@ class GameViewModel : ViewModel() {
 
     private var timerJob: Job? = null
 
+    private fun playSound(effect: SoundEffect) {
+        if (_settings.value.soundEffectsEnabled) {
+            viewModelScope.launch {
+                _soundEvent.emit(effect)
+            }
+        }
+    }
+
     fun selectPuzzle(puzzle: PuzzleInfo) {
-        if (puzzle.isLocked) return
+        if (puzzle.isLocked) {
+            playSound(SoundEffect.PUZZLE_LOCKED)
+            return
+        }
+        playSound(SoundEffect.MENU_CLICK)
         timerJob?.cancel()
         _uiState.update { it.copy(
             currentPuzzle = puzzle,
@@ -75,12 +112,15 @@ class GameViewModel : ViewModel() {
         if (!puzzle.isLocked) return
         val currentCoins = _userProfile.value.totalCoins
         if (currentCoins >= puzzle.unlockCost) {
+            playSound(SoundEffect.PUZZLE_UNLOCKED)
             _userProfile.update { it.copy(totalCoins = it.totalCoins - puzzle.unlockCost) }
             _puzzles.update { list ->
                 list.map { p ->
                     if (p.id == puzzle.id) p.copy(isLocked = false) else p
                 }
             }
+        } else {
+            playSound(SoundEffect.PUZZLE_LOCKED)
         }
     }
 
@@ -96,6 +136,8 @@ class GameViewModel : ViewModel() {
     fun onAnswerSelected(option: Int) {
         val currentState = _uiState.value
         if (option == currentState.currentQuestion.answer) {
+            wrongAnswersInARow = 0
+            playSound(SoundEffect.ANSWER_CORRECT)
             val newScore = currentState.score + (10 * currentState.combo)
             val newCombo = currentState.combo + 1
             val coinReward = 5 * currentState.combo
@@ -106,7 +148,14 @@ class GameViewModel : ViewModel() {
                 coins = it.coins + coinReward,
                 currentQuestion = generateMathQuestion(_settings.value.difficulty)
             ) }
+            playSound(SoundEffect.COINS_ADDED)
         } else {
+            wrongAnswersInARow++
+            if (wrongAnswersInARow == 3) {
+                playSound(SoundEffect.MANY_FAILS)
+            } else {
+                playSound(SoundEffect.ANSWER_WRONG)
+            }
             _uiState.update { it.copy(
                 combo = 1,
                 shakeTrigger = it.shakeTrigger + 1
@@ -130,6 +179,7 @@ class GameViewModel : ViewModel() {
     }
 
     private fun completePuzzle() {
+        playSound(SoundEffect.GAME_COMPLETE)
         timerJob?.cancel()
         val finalTime = _uiState.value.timeElapsed
         val finalScore = _uiState.value.score
@@ -160,6 +210,21 @@ class GameViewModel : ViewModel() {
     }
 
     fun updateSettings(newSettings: UserSettings) {
+        val old = _settings.value
+        if (old.difficulty != newSettings.difficulty) {
+            playSound(SoundEffect.SWITCH_TOGGLE)
+        } else if (old.soundEffectsEnabled != newSettings.soundEffectsEnabled ||
+            old.backgroundMusicEnabled != newSettings.backgroundMusicEnabled ||
+            old.hapticFeedbackEnabled != newSettings.hapticFeedbackEnabled ||
+            old.showSpecialConfetti != newSettings.showSpecialConfetti) {
+            
+            val newValue = if (old.soundEffectsEnabled != newSettings.soundEffectsEnabled) newSettings.soundEffectsEnabled
+            else if (old.backgroundMusicEnabled != newSettings.backgroundMusicEnabled) newSettings.backgroundMusicEnabled
+            else if (old.hapticFeedbackEnabled != newSettings.hapticFeedbackEnabled) newSettings.hapticFeedbackEnabled
+            else newSettings.showSpecialConfetti
+            
+            if (newValue) playSound(SoundEffect.SWITCH_ON) else playSound(SoundEffect.SWITCH_OFF)
+        }
         _settings.value = newSettings
     }
 

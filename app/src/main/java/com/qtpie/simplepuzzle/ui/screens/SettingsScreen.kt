@@ -19,9 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qtpie.simplepuzzle.model.BackgroundMusicMode
 import com.qtpie.simplepuzzle.model.Difficulty
 import com.qtpie.simplepuzzle.model.UserSettings
 import com.qtpie.simplepuzzle.viewmodel.UserProfileState
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,9 +89,24 @@ fun SettingsScreen(
                 SettingsToggle("Sound Effects", settings.soundEffectsEnabled) {
                     onSettingsChange(settings.copy(soundEffectsEnabled = it))
                 }
+                if (settings.soundEffectsEnabled) {
+                    VolumeSlider("SFX Volume", settings.soundEffectsVolume) {
+                        onSettingsChange(settings.copy(soundEffectsVolume = it))
+                    }
+                }
+                
                 Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                
                 SettingsToggle("Background Music", settings.backgroundMusicEnabled) {
                     onSettingsChange(settings.copy(backgroundMusicEnabled = it))
+                }
+                if (settings.backgroundMusicEnabled) {
+                    VolumeSlider("Music Volume", settings.backgroundMusicVolume) {
+                        onSettingsChange(settings.copy(backgroundMusicVolume = it))
+                    }
+                    MusicModeSelector(settings.backgroundMusicMode) {
+                        onSettingsChange(settings.copy(backgroundMusicMode = it))
+                    }
                 }
             }
 
@@ -155,6 +172,60 @@ fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) 
             colors = CardDefaults.cardColors(containerColor = Color.White),
             content = content
         )
+    }
+}
+
+@Composable
+fun VolumeSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, fontSize = 14.sp, color = Color.Gray)
+            Text("${(value * 100).roundToInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            colors = SliderDefaults.colors(
+                thumbColor = Color(0xFF5A4FCF),
+                activeTrackColor = Color(0xFF5A4FCF),
+                inactiveTrackColor = Color(0xFFE0E7FF)
+            )
+        )
+    }
+}
+
+@Composable
+fun MusicModeSelector(current: BackgroundMusicMode, onSelect: (BackgroundMusicMode) -> Unit) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text("Music Track", fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            BackgroundMusicMode.values().forEach { mode ->
+                val isSelected = current == mode
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) Color(0xFF5A4FCF) else Color(0xFFF1F5F9))
+                        .clickable { onSelect(mode) }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        mode.name.replace("Music", "#"),
+                        color = if (isSelected) Color.White else Color.Gray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
