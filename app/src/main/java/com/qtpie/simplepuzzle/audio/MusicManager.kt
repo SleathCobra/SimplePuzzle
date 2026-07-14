@@ -52,8 +52,8 @@ class MusicManager(private val context: Context) {
 
         val nextRes = when (settings.backgroundMusicMode) {
             BackgroundMusicMode.Random -> {
-                val pool = musicMap.values.toList()
-                pool.random()
+                val pool = musicMap.values.filter { it != currentMusicRes }
+                if (pool.isEmpty()) musicMap.values.random() else pool.random()
             }
             else -> musicMap[settings.backgroundMusicMode] ?: R.raw.bg1
         }
@@ -62,30 +62,58 @@ class MusicManager(private val context: Context) {
     }
 
     private fun playMusic(resId: Int) {
-        if (currentMusicRes == resId && mediaPlayer?.isPlaying == true) return
+        // Only return early if we are NOT in random mode. 
+        // In random mode, we might have been called to loop or switch.
+        if (currentSettings?.backgroundMusicMode != BackgroundMusicMode.Random && 
+            currentMusicRes == resId && mediaPlayer?.isPlaying == true) return
         
-        stopMusic()
-        currentMusicRes = resId
-        playCount = 0
+        val fadeOutDuration = 1000L
+        val fadeInDuration = 1500L
         
-        mediaPlayer = MediaPlayer.create(context, resId).apply {
-            isLooping = false // We handle looping manually to count plays
-            setVolume(currentSettings?.backgroundMusicVolume ?: 0.5f, currentSettings?.backgroundMusicVolume ?: 0.5f)
-            setOnCompletionListener {
-                playCount++
-                val minPlays = minPlaysBeforeSwitch[currentMusicRes] ?: 1
-                
-                if (currentSettings?.backgroundMusicMode == BackgroundMusicMode.Random) {
-                    if (playCount >= minPlays) {
-                        startNewMusic()
-                    } else {
-                        it.start() // Loop same track
-                    }
-                } else {
-                    it.start() // Constant loop for selected track
+        CoroutineScope(Dispatchers.Main).launch {
+            // Fade out current
+            mediaPlayer?.let { player ->
+                val startVol = currentSettings?.backgroundMusicVolume ?: 0.5f
+                val steps = 20
+                for (i in steps downTo 0) {
+                    val vol = startVol * (i.toFloat() / steps)
+                    try { player.setVolume(vol, vol) } catch (e: Exception) {}
+                    delay(fadeOutDuration / steps)
                 }
             }
-            start()
+
+            stopMusic()
+            currentMusicRes = resId
+            playCount = 0
+            
+            mediaPlayer = MediaPlayer.create(context, resId).apply {
+                val targetVol = currentSettings?.backgroundMusicVolume ?: 0.5f
+                setVolume(0f, 0f)
+                isLooping = false
+                setOnCompletionListener {
+                    playCount++
+                    val minPlays = minPlaysBeforeSwitch[currentMusicRes] ?: 1
+                    
+                    if (currentSettings?.backgroundMusicMode == BackgroundMusicMode.Random) {
+                        if (playCount >= minPlays) {
+                            startNewMusic()
+                        } else {
+                            it.start()
+                        }
+                    } else {
+                        it.start()
+                    }
+                }
+                start()
+                
+                // Fade in
+                val steps = 30
+                for (i in 0..steps) {
+                    val vol = targetVol * (i.toFloat() / steps)
+                    try { setVolume(vol, vol) } catch (e: Exception) {}
+                    delay(fadeInDuration / steps)
+                }
+            }
         }
     }
 
