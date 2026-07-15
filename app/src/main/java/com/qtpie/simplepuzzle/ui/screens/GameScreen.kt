@@ -71,150 +71,160 @@ fun GameScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .navigationBarsPadding() // Protect against system navbar
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp) // Extra safety margin at the bottom
         ) {
-            // Header: Score (Left), Timer & Coins (Right)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+            val availableHeight = maxHeight
+            val isSmallScreen = availableHeight < 650.dp
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Score
-                Column {
-                    Text("SCORE", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("${state.score}", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Black)
-                    
-                    // Fixed height container to reserve space for the combo badge
-                    Box(modifier = Modifier.height(32.dp)) {
-                        if (state.combo > 1) {
-                            Surface(
-                                color = Color(0xFFFFD700),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.padding(top = 4.dp)
-                            ) {
-                                Text(
-                                    text = "COMBO X${state.combo}", 
-                                    color = Color.Black, 
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), 
-                                    fontWeight = FontWeight.Bold, 
-                                    fontSize = 12.sp
-                                )
+                // 1. Header Area
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Score
+                    Column {
+                        Text("SCORE", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("${state.score}", color = Color.White, fontSize = if (isSmallScreen) 24.sp else 32.sp, fontWeight = FontWeight.Black)
+                        Box(modifier = Modifier.height(if (isSmallScreen) 24.dp else 32.dp)) {
+                            if (state.combo > 1) {
+                                Surface(
+                                    color = Color(0xFFFFD700),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                ) {
+                                    Text(
+                                        "COMBO X${state.combo}", 
+                                        color = Color.Black, 
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), 
+                                        fontWeight = FontWeight.Bold, 
+                                        fontSize = 10.sp
+                                    )
+                                }
                             }
                         }
                     }
-                }
-
-                // Right: Timer
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(formatTime(state.timeElapsed), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    // Timer
+                    Column(horizontalAlignment = Alignment.End) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Timer, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(formatTime(state.timeElapsed), color = Color.White, fontSize = if (isSmallScreen) 18.sp else 24.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Text(
+                            text = "BEST: ${state.bestTime?.let { formatTime(it) } ?: "--:--"}",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 10.sp
+                        )
                     }
-                    Text(
-                        text = "BEST: ${state.bestTime?.let { formatTime(it) } ?: "--:--"}",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                JigsawBoard(
-                    rows = if (puzzle.totalPieces == 16) 4 else 5,
-                    cols = if (puzzle.totalPieces == 16) 4 else 6,
-                    visiblePieces = state.unlockedPieces,
-                    shakeTrigger = state.shakeTrigger,
-                    onSound = onSound,
-                    modifier = Modifier.fillMaxSize()
+                // 2. Puzzle Area (Flexible)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = painterResource(id = puzzle.imageResId),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                
-                if (state.isGameOver) {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.7f)),
-                        contentAlignment = Alignment.Center
+                            .fillMaxHeight()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.Black.copy(alpha = 0.3f))
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("PUZZLE COMPLETE!", color = Color(0xFFFFD700), fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = onBack) {
-                                Text("Back to Gallery")
+                        JigsawBoard(
+                            rows = if (puzzle.totalPieces == 16) 4 else 5,
+                            cols = if (puzzle.totalPieces == 16) 4 else 6,
+                            visiblePieces = state.unlockedPieces,
+                            shakeTrigger = state.shakeTrigger,
+                            onSound = onSound,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            Image(
+                                painter = painterResource(id = puzzle.imageResId),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        
+                        if (state.isGameOver) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.7f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("PUZZLE COMPLETE!", color = Color(0xFFFFD700), fontSize = if (isSmallScreen) 20.sp else 28.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(onClick = onBack) {
+                                        Text("Back to Gallery")
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            FlowingProgressBar(
-                current = state.unlockedPieces.size,
-                total = puzzle.totalPieces
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "${state.currentQuestion.problem} = ?",
-                        style = MaterialTheme.typography.displaySmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
+                // 3. Bottom Area
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(if (isSmallScreen) 12.dp else 16.dp)
+                ) {
+                    FlowingProgressBar(
+                        current = state.unlockedPieces.size,
+                        total = puzzle.totalPieces
                     )
-                }
-            }
 
-            Spacer(modifier = Modifier.height(24.dp))
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(if (isSmallScreen) 50.dp else 64.dp),
+                        shape = RoundedCornerShape(if (isSmallScreen) 12.dp else 16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "${state.currentQuestion.problem} = ?",
+                                fontSize = if (isSmallScreen) 22.sp else 28.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                val chunks = state.currentQuestion.options.chunked(2)
-                chunks.forEach { rowOptions ->
+                    // Answer Options - Horizontal List of 4 Squares
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        rowOptions.forEach { option ->
+                        state.currentQuestion.options.forEach { option ->
                             MathOptionButton(
                                 text = "$option",
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .aspectRatio(1f),
                                 onClick = { onAnswerSelected(option) }
                             )
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -237,11 +247,11 @@ fun FlowingProgressBar(current: Int, total: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .shadow(8.dp, RoundedCornerShape(20.dp))
-            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            .border(2.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp)),
+            .height(28.dp)
+            .shadow(6.dp, RoundedCornerShape(14.dp))
+            .background(Color.Black.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+            .border(1.5.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp)),
         contentAlignment = Alignment.Center
     ) {
         // Progress Fill
@@ -261,10 +271,10 @@ fun FlowingProgressBar(current: Int, total: Int) {
         
         // Text Overlay
         Text(
-            text = "$current / $total PIECES COLLECTED",
+            text = "$current / $total PIECES",
             color = Color.White,
             fontWeight = FontWeight.Black,
-            fontSize = 14.sp,
+            fontSize = 11.sp,
             letterSpacing = 1.sp
         )
     }
@@ -280,8 +290,8 @@ fun formatTime(seconds: Int): String {
 fun MathOptionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onClick,
-        modifier = modifier.height(52.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
         color = Color.White.copy(alpha = 0.15f),
         tonalElevation = 8.dp
     ) {
@@ -289,7 +299,7 @@ fun MathOptionButton(text: String, onClick: () -> Unit, modifier: Modifier = Mod
             Text(
                 text = text,
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
         }
