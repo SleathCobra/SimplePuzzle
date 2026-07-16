@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.qtpie.simplepuzzle.core.model.Difficulty
 import com.qtpie.simplepuzzle.core.model.GraphicsQuality
+import com.qtpie.simplepuzzle.core.model.GameModeCatalog
+import com.qtpie.simplepuzzle.core.model.GameModeId
 import com.qtpie.simplepuzzle.core.model.PlayerPreferences
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +22,8 @@ interface PreferencesRepository {
     val preferences: Flow<PlayerPreferences>
 
     suspend fun setPreferences(preferences: PlayerPreferences)
+
+    suspend fun setLastSelectedMode(modeId: GameModeId)
 
     suspend fun isLegacyMigrationComplete(): Boolean
 
@@ -48,6 +52,10 @@ class DataStorePreferencesRepository(
         }
     }
 
+    override suspend fun setLastSelectedMode(modeId: GameModeId) {
+        dataStore.edit { values -> values[Keys.LastSelectedMode] = modeId.persistedValue }
+    }
+
     override suspend fun isLegacyMigrationComplete(): Boolean =
         dataStore.data.map { it[Keys.LegacyMigrationComplete] ?: false }.first()
 
@@ -64,6 +72,7 @@ class DataStorePreferencesRepository(
         difficulty = values[Keys.Difficulty].enumOrDefault(Difficulty.MEDIUM),
         graphicsQuality = values[Keys.GraphicsQuality].enumOrDefault(GraphicsQuality.AUTO),
         reducedMotion = values[Keys.ReducedMotion] ?: false,
+        lastSelectedMode = GameModeCatalog.idOrClassic(values[Keys.LastSelectedMode]),
     )
 
     private object Keys {
@@ -76,6 +85,7 @@ class DataStorePreferencesRepository(
         val GraphicsQuality = stringPreferencesKey("graphics_quality")
         val ReducedMotion = booleanPreferencesKey("reduced_motion")
         val LegacyMigrationComplete = booleanPreferencesKey("legacy_migration_complete")
+        val LastSelectedMode = stringPreferencesKey("last_selected_mode")
     }
 }
 

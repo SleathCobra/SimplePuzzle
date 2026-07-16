@@ -9,6 +9,7 @@ import com.qtpie.simplepuzzle.core.data.migration.LegacyProgressMigrator
 import com.qtpie.simplepuzzle.core.data.preferences.DataStorePreferencesRepository
 import com.qtpie.simplepuzzle.core.data.preferences.PreferencesRepository
 import com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase
+import com.qtpie.simplepuzzle.core.data.progress.JigsawMathMigrations
 import com.qtpie.simplepuzzle.core.data.progress.ProgressRepository
 import com.qtpie.simplepuzzle.core.data.progress.RoomProgressRepository
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +24,7 @@ class JigsawDataContainer(
         applicationContext,
         JigsawMathDatabase::class.java,
         DATABASE_NAME,
-    ).build()
+    ).addMigrations(JigsawMathMigrations.Migration1To2).build()
 
     private val preferencesDataStore = PreferenceDataStoreFactory.create(
         scope = applicationScope,

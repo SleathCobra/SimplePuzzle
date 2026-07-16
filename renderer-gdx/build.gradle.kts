@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.ktx.app)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.core)
 
     gdxArmNatives("com.badlogicgames.gdx:gdx-platform:${libs.versions.gdx.get()}:natives-armeabi-v7a")
     gdxArm64Natives("com.badlogicgames.gdx:gdx-platform:${libs.versions.gdx.get()}:natives-arm64-v8a")

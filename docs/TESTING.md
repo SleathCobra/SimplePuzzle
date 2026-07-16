@@ -4,12 +4,12 @@ Tests use injected fakes and deterministic state rather than arbitrary delays or
 
 ## Host tests
 
-- `core-model`: piece sets beyond 64 pieces and model invariants;
-- `core-game`: deterministic questions, valid/unique choices, difficulty ranges, scoring, combo reset/growth, wrong answers, reveal separation, final completion, duplicate-event prevention, pause/resume, and restart;
-- `core-data`: real temporary DataStore round trips and one-time legacy migration with fakes;
-- `asset-pipeline`: byte-identical generation, manifest round trip, invalid definitions, seed-dependent topology, complementary boundaries, area-preserving pre-triangulation, and reveal ranks;
-- `renderer-gdx`: command ordering, callback replacement, fixed-step accumulation/delta clamping, mesh validation, and particle-pool capacity/reuse;
-- `app`: ViewModel mapping, renderer-delayed progression, wrong-answer feedback, and duplicate completion handling.
+- `core-model`: piece sets beyond 64 pieces, mode catalog/fallback, mutation/timer model invariants;
+- `core-game`: Classic parity; Time Attack, Survival, Puzzle Decay, Combo Rush; deterministic timer races; acknowledged reveal/removal; outcomes; pause/resume/restart; seed reproduction;
+- `core-data`: temporary DataStore round trips, last-mode fallback, and one-time legacy migration with fakes;
+- `asset-pipeline`: byte-identical package/catalog generation, manifest round trip, invalid definitions/packages, topology, area-preserving triangulation, and reveal ranks;
+- `renderer-gdx`: command order/replay/callback replacement, fixed-step clamp, bounded pools, removal profiles, preview determinism/occupancy/package order;
+- `app`: mode selection/HUD mapping, timer cancellation/pause, renderer-delayed progression, one-shot heart/time feedback, and duplicate completion handling.
 
 Run:
 
@@ -21,19 +21,21 @@ Jacoco is enabled for the pure JVM modules. Coverage is supporting evidence, not
 
 ## Device tests
 
-`core-data` contains an in-memory Room DAO test for transactional attempt, progress, completion, session, and reset behavior. Existing app instrumentation scaffolding also compiles. Build device tests with:
+`core-data` device tests cover Room 1→2 preservation/normalization, mode sessions, independent best metrics, unknown mode text, challenge/permanent-progress separation, and reset. App tests cover title preview existence, repeated title/gallery teardown, mode selection, Classic/timed gameplay, and title/game surface exclusivity. Build device tests with:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-data:compileDebugAndroidTestKotlin :app:compileDebugAndroidTestKotlin
 ```
 
-The API 37 emulator executes both current connected suites:
+The API 37 emulator executes both current connected suites. The latest feature verification passes 5/5 Room tests and 3/3 app tests:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-data:connectedDebugAndroidTest :app:connectedDebugAndroidTest
 ```
 
-`core-data` passes two Room transaction/reset tests and `app` passes its current instrumentation test. Manual device journeys additionally verified system/toolbar back teardown, background/resume, settings persistence across force-stop/relaunch, reset confirmation/cancel, semantics, tabbed mesh rendering, and five repeated gameplay enter/leave cycles. Automated renderer-surface recreation and screenshot coverage remain useful additions.
+These counts are from the current mode/preview implementation. Historical pre-mode emulator measurements remain separately labeled in `PERFORMANCE_RESULTS.md`.
+
+The timed HUD intentionally interpolates its display from a coarse monotonic anchor with a local frame clock. Its navigation instrumentation invokes the selected card's semantic action and advances the Compose test clock by a fixed amount before waiting on the renderer lifecycle callback; it never sleeps or waits for global Compose idleness during an active countdown.
 
 ## UI and adaptive verification
 
@@ -41,7 +43,7 @@ The gallery uses `GridCells.Adaptive(168.dp)`. Required visual coverage is phone
 
 ## Benchmark and Baseline Profile
 
-The `benchmark` module compiles against the minified/profileable `benchmark` app variant. It contains cold startup, title-to-gameplay, title-to-settings, and Baseline Profile journeys.
+The `benchmark` module compiles against the minified/profileable `benchmark` app variant. Sources include cold animated-title startup, title-to-settings, title-to-mode/game, ten timed answers, Puzzle Decay reveal/removal, and timed background/resume journeys plus the Baseline Profile flow.
 
 Assemble with:
 

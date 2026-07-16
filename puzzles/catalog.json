@@ -1,0 +1,13 @@
+{
+  "formatVersion": 1,
+  "puzzles": [
+    {
+      "definitionFile": "cosmic-journey/puzzle.json",
+      "generatedAssetRoot": "puzzles/cosmic-journey",
+      "thumbnailResourceName": "cosmic_journey_thumbnail",
+      "available": true,
+      "initiallyLocked": false,
+      "legacyProgressId": "puzzle-1"
+    }
+  ]
+}

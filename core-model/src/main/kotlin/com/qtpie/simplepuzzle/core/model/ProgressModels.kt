@@ -28,11 +28,44 @@ data class GameSessionSummary(
     val durationMillis: Long,
     val completed: Boolean,
     val endedAtEpochMillis: Long,
+    val modeId: GameModeId = GameModeId.CLASSIC,
+    val outcome: ModeOutcome = if (completed) ModeOutcome.COMPLETED else ModeOutcome.ABANDONED,
+    val timeoutCount: Int = 0,
+    val maximumCombo: Int = 1,
+    val piecesRevealed: Int = correctAnswers,
+    val piecesRemoved: Int = 0,
+    val livesRemaining: Int? = null,
 ) {
     init {
         require(correctAnswers >= 0 && incorrectAnswers >= 0) {
             "Answer counts must be non-negative."
         }
         require(durationMillis >= 0) { "Session duration must be non-negative." }
+        require(timeoutCount >= 0 && piecesRevealed >= 0 && piecesRemoved >= 0) {
+            "Timeout and piece counts must be non-negative."
+        }
+        require(maximumCombo >= 1) { "Maximum combo must be at least one." }
+        require(livesRemaining == null || livesRemaining >= 0) { "Lives remaining must be non-negative." }
+        require(completed == (outcome == ModeOutcome.COMPLETED)) {
+            "Completed sessions must use the completed mode outcome and vice versa."
+        }
+    }
+}
+
+data class ModeBest(
+    val puzzleId: PuzzleId,
+    val modeId: GameModeId,
+    val bestScore: Score,
+    val fastestCompletionMillis: Long?,
+    val highestCombo: Int,
+    val fewestMistakes: Int?,
+    val mostRecentCompletionEpochMillis: Long?,
+) {
+    init {
+        require(fastestCompletionMillis == null || fastestCompletionMillis >= 0) {
+            "Fastest completion must be non-negative."
+        }
+        require(highestCombo >= 1) { "Highest combo must be at least one." }
+        require(fewestMistakes == null || fewestMistakes >= 0) { "Fewest mistakes must be non-negative." }
     }
 }

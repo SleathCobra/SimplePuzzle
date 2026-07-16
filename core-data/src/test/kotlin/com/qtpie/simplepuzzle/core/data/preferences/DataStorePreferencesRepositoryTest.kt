@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.qtpie.simplepuzzle.core.model.Difficulty
 import com.qtpie.simplepuzzle.core.model.GraphicsQuality
 import com.qtpie.simplepuzzle.core.model.PlayerPreferences
+import com.qtpie.simplepuzzle.core.model.GameModeId
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -46,6 +47,15 @@ class DataStorePreferencesRepositoryTest {
         assertFalse(repository.isLegacyMigrationComplete())
         repository.markLegacyMigrationComplete()
         assertTrue(repository.isLegacyMigrationComplete())
+    }
+
+    @Test
+    fun lastModeRoundTripsAndUnknownFutureValueFallsBackToClassic() = runTest {
+        val repository = repository(File(temporaryFolder.root, "mode.preferences_pb"))
+
+        repository.setLastSelectedMode(GameModeId.PUZZLE_DECAY)
+
+        assertEquals(GameModeId.PUZZLE_DECAY, repository.preferences.first().lastSelectedMode)
     }
 
     private fun kotlinx.coroutines.test.TestScope.repository(file: File): DataStorePreferencesRepository =

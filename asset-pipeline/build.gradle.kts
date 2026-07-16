@@ -35,6 +35,8 @@ tasks.test {
 val representativeDefinition = rootProject.file("puzzles/cosmic-journey/puzzle.json")
 val representativeSource = rootProject.file("app/src/main/res/drawable/puzzle.png")
 val representativeOutput = rootProject.file("app/src/main/assets/puzzles/cosmic-journey")
+val puzzleCatalogDefinition = rootProject.file("puzzles/catalog.json")
+val generatedPuzzleCatalog = rootProject.file("app/src/main/assets/puzzles/catalog.json")
 
 tasks.register<JavaExec>("generatePuzzleAssets") {
     group = "asset pipeline"
@@ -55,4 +57,20 @@ tasks.register<Sync>("syncPuzzleThumbnails") {
     from(representativeOutput.resolve("thumbnail.png"))
     into(rootProject.file("app/src/main/res/drawable-nodpi"))
     rename { "cosmic_journey_thumbnail.png" }
+}
+
+tasks.register<JavaExec>("generatePuzzleCatalog") {
+    group = "asset pipeline"
+    description = "Validates generated packages and writes the deterministic runtime puzzle catalog."
+    dependsOn("generatePuzzleAssets")
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.qtpie.simplepuzzle.assets.PuzzleCatalogCliKt")
+    args(
+        puzzleCatalogDefinition.absolutePath,
+        rootProject.projectDir.absolutePath,
+        generatedPuzzleCatalog.absolutePath,
+    )
+    inputs.file(puzzleCatalogDefinition)
+    inputs.file(representativeOutput.resolve("manifest.json"))
+    outputs.file(generatedPuzzleCatalog)
 }

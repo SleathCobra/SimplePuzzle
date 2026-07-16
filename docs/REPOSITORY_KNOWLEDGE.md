@@ -28,7 +28,7 @@ The dependency graph is deliberately one-way. In particular, `core-game` has no 
 
 `app/src/main/AndroidManifest.xml` names `JigsawMathApplication` and exports only the launcher `MainActivity`.
 
-`JigsawMathApplication.onCreate` creates one `JigsawDataContainer` with an application-owned `SupervisorJob + Dispatchers.IO` scope and launches `JigsawDataContainer.initialize`. Initialization currently runs the guarded legacy-migration boundary.
+`JigsawMathApplication.onCreate` loads the validated generated puzzle catalog, creates one `JigsawDataContainer` with an application-owned `SupervisorJob + Dispatchers.IO` scope, and launches `JigsawDataContainer.initialize`. Initialization currently runs the guarded legacy-migration boundary.
 
 `MainActivity`:
 
@@ -41,7 +41,7 @@ The dependency graph is deliberately one-way. In particular, `core-game` has no 
 `SimplePuzzleApp` owns a Navigation Compose `NavHost`. Routes are the `Screen` objects in `MainActivity.kt`:
 
 ```text
-start -> gallery -> game
+start -> gallery -> mode-selection -> game
 start -> settings
 ```
 
@@ -51,12 +51,12 @@ Title, gallery, settings, and gameplay state are collected with `collectAsStateW
 
 The authoritative rules live in `core-game`:
 
-1. `GameViewModel.selectPuzzle` creates `GameConfiguration`, calls `GameEngine.newGame`, reduces `GameAction.Start`, maps the immutable result into `GameUiState`, starts the timer, and queues a Room attempt.
+1. Gallery selection records the catalog puzzle for `ModeSelectionScreen`; choosing a mode makes `GameViewModel.selectPuzzle` create a resolved `GameConfiguration`, reduce `GameAction.Start`, map the immutable result into `GameUiState`, apply semantic timer directives, and queue a Room attempt.
 2. `GameViewModel.onAnswerSelected` reduces `SelectAnswer` only when the reducer is awaiting an answer.
 3. A wrong answer resets combo through the reducer and increments the coarse Compose shake trigger; it does not advance the puzzle.
-4. A correct answer moves the reducer to `REVEALING_PIECE`, assigns `pendingPiece`, updates score/combo, and exposes that pending index as `GameUiState.revealingPiece`. The piece is not yet in `revealedPieces`.
-5. The renderer completes its animation and invokes `GameViewModel.onRevealAnimationFinished(pieceIndex)`.
-6. The ViewModel validates phase and exact piece, reduces `RevealAnimationFinished`, maps the committed piece into UI state, saves aggregate progress, and completes the Room transaction if the final piece was revealed.
+4. A correct answer creates `PendingBoardMutation(REVEAL)` with a session-scoped ID. Puzzle Decay can create the same model with `REMOVE`. The committed `PieceSet` is unchanged until animation acknowledgement.
+5. The renderer completes the reveal/removal using the package mesh and invokes `GameViewModel.onBoardMutationFinished(mutationId)`.
+6. The ViewModel/reducer validate the exact mutation ID, commit the `PieceSet`, reject stale/duplicate acknowledgements, and complete the Room transaction only when an acknowledged final reveal completes the puzzle.
 
 `DefaultGameEngine` is deterministic for a supplied `RandomSource`. `GameViewModel` currently constructs it with `SeededRandomSource(DEFAULT_GAME_SEED)`. `DefaultMathQuestionGenerator` prevents negative subtraction answers and produces four unique non-negative choices. `StandardScoringPolicy` awards `10 * combo` before the combo increments.
 
@@ -77,9 +77,11 @@ The ViewModel is still a strangler adapter: `app/model/Models.kt` contains UI-sp
 - `CompletionEffect` when completion becomes true;
 - `Pause` and `Resume` from lifecycle events.
 
-`PuzzleRendererController` is a `ConcurrentLinkedQueue` plus an atomic reveal listener. `PuzzleRenderer.render` drains commands on the render thread before its fixed-step update. Reveal completion returns through the controller, is posted to the Android main looper by `GdxPuzzleBoard`, and reaches the latest Compose callback via `rememberUpdatedState`.
+`PuzzleRendererController` is a `ConcurrentLinkedQueue` plus an atomic mutation listener and retained coarse snapshot/quality/pending-operation state. `PuzzleRenderer.render` drains commands on the render thread before its fixed-step update. Mutation completion returns through the controller, is posted to the Android main looper by `GdxPuzzleBoard`, and reaches the latest Compose callback via `rememberUpdatedState`. A recreated surface replays the committed snapshot and any operation not yet reflected by a committed snapshot.
 
 Per-frame particle positions, reveal progress, camera shake, interpolation, and delta time never enter Compose state or `StateFlow`.
+
+`GameModeCatalog` centrally defines Classic, Time Attack, Survival, Puzzle Decay, and Combo Rush from immutable policies. `ModeTimerCoordinator` converts reducer timer directives into monotonic scheduled callbacks and coarse UI anchors. Pause/resume preserves remaining time exactly; restarts and new questions use new generations. See `docs/GAME_MODES.md`.
 
 ## 6. libGDX lifecycle and resource ownership
 
@@ -87,11 +89,11 @@ Per-frame particle positions, reveal progress, camera shake, interpolation, and 
 
 The controller is Activity-scoped so configuration/surface recreation can retain queued coarse commands without retaining an Activity in renderer code. The actual `PuzzleRenderer` and its GL resources are surface-owned.
 
-Gameplay exit has a non-obvious ordering contract. `SimplePuzzleApp.leaveGameplay` pauses the reducer, finds the renderer Fragment, removes it with `commitNow` while the `FragmentContainerView` is still attached, and then pops navigation. `GameScreen` routes system back and toolbar back through that function. Removing the Compose container first previously caused `AndroidGraphics` pause synchronization to time out and terminate the process.
+Gameplay exit has a non-obvious ordering contract. `SimplePuzzleApp` abandons the active run/cancels its timers, finds the renderer Fragment, removes it with `commitNow` while the `FragmentContainerView` is still attached, and then pops navigation. `BackHandler` and toolbar back use that same path. The title preview uses the identical ordering before Play/Settings navigation. Removing a Compose container first previously caused `AndroidGraphics` pause synchronization to time out and terminate the process.
 
 `PuzzleRenderer.create` owns manifest read/validation, texture creation, mesh upload, shader compilation, SpriteBatch creation, particle pool allocation, and glow-texture generation. `dispose` releases shader, both meshes, puzzle texture, SpriteBatch, and glow texture. `pause`/`resume` reset the clock.
 
-Rendering uses a `FitViewport(1, 1)`, one puzzle texture, one preallocated static revealed-piece index buffer, and a second reusable draw for the active alpha reveal. `FixedStepClock` advances at 60 Hz and clamps a resumed frame delta to 100 ms. `ParticlePool` has 64 preallocated slots. LOW/MEDIUM/HIGH change reveal duration and particle limits; AUTO currently maps to MEDIUM.
+Rendering uses a `FitViewport(1, 1)`, one puzzle texture, one preallocated static visible-piece index buffer, and a second reusable draw for an active reveal/removal. `FixedStepClock` advances at 60 Hz and clamps resumed delta. `ParticlePool` has 64 preallocated slots. Removal fades, scales, rotates, and moves the existing mesh; LOW/reduced-motion suppress optional complexity. The title configuration caps foreground rendering at 30 FPS and drives a pure deterministic preview sequence without Compose frame state.
 
 ## 7. Puzzle asset pipeline
 
@@ -107,11 +109,13 @@ The source definition is `puzzles/cosmic-journey/puzzle.json`. It references `ap
 - emits global normalized vertices/UVs, triangle indices, bounds, final position, and deterministic reveal rank;
 - writes `texture.png`, `thumbnail.png`, and `manifest.json` using format version 2.
 
-Gradle task `:asset-pipeline:generatePuzzleAssets` writes the committed package under `app/src/main/assets/puzzles/cosmic-journey/`. `:asset-pipeline:syncPuzzleThumbnails` copies the committed thumbnail to `app/src/main/res/drawable-nodpi/cosmic_journey_thumbnail.png`. `app:preBuild` depends on both tasks, so hand edits to generated outputs will be overwritten.
+Gradle tasks `:asset-pipeline:generatePuzzleAssets` and `:asset-pipeline:syncPuzzleThumbnails` write the committed package/thumbnail. `:asset-pipeline:generatePuzzleCatalog` validates `puzzles/catalog.json` against generated packages and writes `app/src/main/assets/puzzles/catalog.json`. `app:preBuild` depends on all three tasks, so hand edits to generated outputs will be overwritten.
 
 `PuzzleMeshDataBuilder` validates contiguous indices and precomputed triangles, flips manifest Y positions into renderer coordinates, and combines pieces into reusable vertex/index arrays. Runtime performs no crop, slicing, curve generation, or triangulation.
 
-The current Gradle tasks and renderer default are hardcoded for Cosmic Journey. Follow `docs/ADDING_A_PUZZLE.md`; multi-puzzle generation and selected asset-root routing must be extended together.
+The title uses a separate `PuzzlePreviewRendererFragment` and controller. `PreviewSequenceGenerator` creates a deterministic 20–80 percent occupancy loop, and `PreviewPackageSequence` changes real catalog packages only after the renderer reports an idle operation boundary. Reduced motion leaves a static partial board. No preview path creates a game session or persistence write; see `docs/TITLE_PREVIEW.md`.
+
+Cosmic Journey is the only real package currently registered. Gameplay passes the selected catalog `assetRoot` through `GameScreen`/`GdxPuzzleBoard`, and title preview candidates come from the same validated runtime catalog. Follow `docs/ADDING_A_PUZZLE.md`; per-puzzle generation/sync inputs still need explicit Gradle extension.
 
 ## 8. Room and DataStore persistence
 
@@ -122,9 +126,9 @@ The current Gradle tasks and renderer default are hardcoded for Cosmic Journey. 
 - `RoomProgressRepository` and `DataStorePreferencesRepository`;
 - `LegacyProgressMigrator`.
 
-Room version 1 stores `PuzzleProgressEntity` and `GameSessionEntity`. `ProgressDao` wraps attempt start, progress updates, completion plus session insert, and full progress reset in transactions. The schema export is committed under `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/1.json`.
+Room version 2 stores `PuzzleProgressEntity`, mode-aware `GameSessionEntity`, and `ModeBestEntity`. Migration 1→2 adds session mode/outcome/stat columns, preserves legacy rows, normalizes the former `puzzle-1` ID to `cosmic-journey`, and creates per-puzzle/per-mode best records. `ProgressDao` keeps score, fastest completion, combo, and mistakes as independent best metrics. Reset transactionally clears progress, sessions, and mode bests. Both schema exports are committed under `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/`.
 
-DataStore persists sound/music enablement and volume, haptics, difficulty, graphics quality, reduced motion, and the legacy-migration-complete flag. Enum reads fall back safely when stored text is unknown.
+DataStore persists sound/music enablement and volume, haptics, difficulty, graphics quality, reduced motion, last selected mode, and the legacy-migration-complete flag. Enum/mode reads fall back safely when stored text is unknown.
 
 `LegacyProgressMigrator` runs at application initialization and marks its flag after importing. The currently wired `EmptyLegacyProgressSource` imports no rows; the abstraction and its test establish idempotence but do not constitute a real legacy reader.
 
@@ -158,16 +162,16 @@ There are currently no workflows under `.github/workflows`; verification is loca
 
 The verified host command is documented in `docs/TESTING.md` and exercises:
 
-- `core-model`: scalable `PieceSet` invariants;
-- `core-game`: deterministic questions, choice validity, scoring, combos, wrong answers, reveal separation, completion, duplicate protection, pause/resume, restart, and >64 pieces;
+- `core-model`: scalable `PieceSet` and mode-catalog invariants;
+- `core-game`: deterministic questions plus all five mode policies, semantic timer races, acknowledged reveal/removal, completion/failure, duplicate protection, pause/resume, restart, and seed reproduction;
 - `core-data`: DataStore round trip and legacy migration idempotence;
-- `asset-pipeline`: byte determinism, serialization, validation, topology, complementary boundaries, area-preserving triangulation, and reveal ranks;
-- `renderer-gdx`: fixed-step clamp, particle reuse/capacity, mesh combination/validation, command ordering, and callback replacement;
-- `app`: reducer-to-UI mapping, wrong feedback, renderer-delayed progression, duplicate completion, and lifecycle pause.
+- `asset-pipeline`: package/catalog byte determinism, serialization, validation, topology, complementary boundaries, area-preserving triangulation, and reveal ranks;
+- `renderer-gdx`: fixed-step clamp, particle reuse/capacity, mesh validation, mutation replay/order, callback replacement, and deterministic preview bounds/package order;
+- `app`: mode selection/HUD mapping, one-shot feedback, timer cancellation/pause, renderer-delayed progression, duplicate completion, and lifecycle pause.
 
-Device-dependent suites are `:core-data:connectedDebugAndroidTest` (Room DAO transactions/reset) and `:app:connectedDebugAndroidTest` (current package smoke test).
+Device-dependent suites are `:core-data:connectedDebugAndroidTest` (Room 1→2 migration, mode sessions/bests/reset) and `:app:connectedDebugAndroidTest` (title preview and controlled title/gallery/mode/game renderer navigation).
 
-The `app` benchmark build type is release-derived, non-debuggable, debug-signed, R8-minified, resource-shrunk, and profileable through `app/src/benchmark/AndroidManifest.xml`. The `benchmark` module measures cold title startup, title-to-settings, and title-to-gameplay for five iterations and contains a BaselineProfileRule journey through gameplay.
+The `app` benchmark build type is release-derived, non-debuggable, debug-signed, R8-minified, resource-shrunk, and profileable through `app/src/benchmark/AndroidManifest.xml`. Journeys cover cold animated-title startup, title-to-settings/mode/game, timed answers, Puzzle Decay reveal/removal, and timed background/resume. Existing measurements predate these additions until new benchmark results are recorded.
 
 The benchmark source retains the emulator warning. Emulator results in `docs/PERFORMANCE_RESULTS.md` are diagnostic only. Raw generated Baseline Profile rules are R8-obfuscated and are not committed because the stable Baseline Profile plugin used during migration could not provide compatible mapping/rewrite integration for the existing AGP model.
 
@@ -178,6 +182,8 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 | `app/src/main/java/com/qtpie/simplepuzzle/JigsawMathApplication.kt` | `JigsawMathApplication.onCreate`, data-container lifetime |
 | `app/src/main/java/com/qtpie/simplepuzzle/MainActivity.kt` | `MainActivity`, `SimplePuzzleApp`, navigation and controlled renderer exit |
 | `app/src/main/java/com/qtpie/simplepuzzle/viewmodel/GameViewModel.kt` | engine/UI adapter, settings/progress collection, persistence ordering |
+| `app/src/main/java/com/qtpie/simplepuzzle/viewmodel/ModeTimerCoordinator.kt` | monotonic semantic timer scheduling and coarse UI anchors |
+| `core-model/src/main/kotlin/com/qtpie/simplepuzzle/core/model/GameModeModels.kt` | stable IDs, policy models, catalog and tuning |
 | `core-model/src/main/kotlin/com/qtpie/simplepuzzle/core/model/GameModels.kt` | actions, events, phases, immutable state, preferences |
 | `core-game/src/main/kotlin/com/qtpie/simplepuzzle/core/game/GameEngine.kt` | `DefaultGameEngine.reduce` |
 | `core-game/src/main/kotlin/com/qtpie/simplepuzzle/core/game/QuestionGenerator.kt` | difficulty policies and valid choices |
@@ -187,6 +193,9 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 | `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/PuzzleRendererFragment.kt` | libGDX Android backend creation |
 | `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/PuzzleRenderer.kt` | resource creation, render loop, fixed-step effects, disposal |
 | `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/RendererCommand.kt` | cross-thread renderer API |
+| `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/PreviewSequenceGenerator.kt` | deterministic preview piece/package sequences |
+| `app/src/main/java/com/qtpie/simplepuzzle/ui/components/TitlePuzzlePreview.kt` | title Fragment host and idle package switching |
+| `puzzles/catalog.json` | authoritative source catalog |
 | `asset-pipeline/src/main/kotlin/com/qtpie/simplepuzzle/assets/PuzzleAssetGenerator.kt` | deterministic generation and triangulation |
 | `benchmark/src/main/java/com/qtpie/simplepuzzle/benchmark/` | journeys and profile generator |
 | `tools/android-env.ps1` | SDK/JBR resolver and process-local environment |
@@ -216,26 +225,24 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 
 ## 15. Known limitations
 
-- Only Cosmic Journey has a generated runtime package. Other gallery cards reuse its thumbnail, and gameplay always creates `PuzzleRendererFragment` with the Cosmic Journey default asset root.
-- The gallery catalog, coin balance, and unlock state are hardcoded/in-memory rather than manifest/repository driven.
+- Only Cosmic Journey has a generated runtime package; the UI does not fabricate additional playable gallery entries. Coin balance and unlock state remain in-memory.
 - Aggregate revealed count is persisted, but exact piece identity and reducer state are not resumed.
 - Background music mode and optional confetti are UI settings but are not in `PlayerPreferences`; confetti preference is not wired to renderer commands.
 - Graphics AUTO maps to MEDIUM rather than using hardware/runtime selection.
-- Reduced motion shortens the reveal and suppresses its correct-answer particle burst, but does not currently suppress every renderer effect.
+- Reduced motion uses bounded gameplay fades and a static partial title board; incorrect-answer shake is still a coarse gameplay effect.
 - `IncorrectAnswerEffect` changes `shakeRemainingSeconds`, but the camera offset is only calculated in `PuzzleRenderer.create`; the current render/update path does not apply a changing shake offset.
 - Manifest `revealOrder` is generated and validated but the current reducer selects randomly from hidden indices instead of consuming that order.
 - Completion is represented as coarse state, so recreating `GdxPuzzleBoard` while already completed can submit `CompletionEffect` again.
 - Music is composition-owned but is not explicitly paused/resumed with Activity backgrounding.
 - Physical-device frame pacing, memory ceilings, thermals, high-refresh behavior, and audio codec compatibility remain unmeasured.
 - Generated Baseline Profile output is not integrated into app source.
-- There is no CI workflow, screenshot test suite, automated renderer-surface recreation test, or Room version-upgrade migration test yet.
+- There is no CI workflow or screenshot golden suite. Room migration and repeated navigation are automated, but physical-device renderer recreation/performance evidence remains outstanding.
 - `app/src/main/res/xml/data_extraction_rules.xml` retains the template backup-policy TODO.
 - `docs/reference/report.typ` references image files that are absent from the checkout, so the historical PDF is not reproducible from source as-is. Poppler/PDF extraction utilities were unavailable during this consolidation; the Typst source and present references were inspected instead.
 
 ## 16. Remaining technical debt
 
 - Replace duplicated app UI models and `generateMathQuestion` fallback with domain-first immutable screen models.
-- Build a manifest/repository-backed puzzle catalog and pass the selected asset root through the renderer bridge.
 - Persist exact revealed pieces, resumable game state, coins, and unlock state with explicit Room migrations.
 - Decide whether background music mode/confetti belong in DataStore and test compatibility if added.
 - Make AUTO quality selection and reduced-motion behavior complete and testable.
@@ -254,3 +261,6 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 - `docs/adr/0003-precomputed-puzzle-assets.md`: deterministic format-2 assets and runtime-free triangulation.
 - `docs/adr/0004-android-studio-embedded-jbr.md`: Android CLI SDK discovery and dynamic bundled-JBR wrappers.
 - `docs/adr/0005-room-datastore-persistence-boundary.md`: structured progress in Room, preferences/migration flag in DataStore.
+- `docs/adr/0006-game-mode-policy-architecture.md`: immutable local mode policies and semantic timers.
+- `docs/adr/0007-renderer-acknowledged-board-mutations.md`: unified reveal/removal identity and acknowledgement.
+- `docs/adr/0008-title-preview-renderer-lifecycle.md`: decorative renderer ownership and controlled teardown.

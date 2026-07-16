@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="puzzle_renderer_container" type="id" />
+    <item name="puzzle_preview_renderer_container" type="id" />
+    <item name="puzzle_renderer_fragment_owner" type="id" />
+    <item name="puzzle_preview_renderer_fragment_owner" type="id" />
 </resources>

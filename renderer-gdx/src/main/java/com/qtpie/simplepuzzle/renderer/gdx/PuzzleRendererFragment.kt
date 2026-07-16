@@ -16,6 +16,7 @@ class PuzzleRendererFragment : AndroidFragmentApplication() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
+        hostViewModel.controller.replayState()
         val configuration = AndroidApplicationConfiguration().apply {
             useGL30 = false
             numSamples = 2

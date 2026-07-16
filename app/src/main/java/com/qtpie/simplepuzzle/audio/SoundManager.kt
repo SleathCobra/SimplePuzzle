@@ -41,6 +41,9 @@ class SoundManager(context: Context) {
         SoundEffect.SWITCH_OFF to intArrayOf(R.raw.switch_off),
         SoundEffect.SWITCH_TOGGLE to intArrayOf(R.raw.switch_toggle),
         SoundEffect.MANY_FAILS to intArrayOf(R.raw.many_fails),
+        SoundEffect.HEART_LOSS to intArrayOf(R.raw.wrong_answer2),
+        SoundEffect.TIME_BONUS to intArrayOf(R.raw.money_added),
+        SoundEffect.MODE_FAILED to intArrayOf(R.raw.many_fails),
     )
 
     init {

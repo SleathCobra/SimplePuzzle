@@ -30,7 +30,9 @@ The representative task writes `app/src/main/assets/puzzles/cosmic-journey/`:
 - `thumbnail.png`: low-resolution gallery image;
 - `manifest.json`: format version, source SHA-256, dimensions, display metadata, grid, seed, and per-piece geometry.
 
-`syncPuzzleThumbnails` also copies the generated thumbnail to `app/src/main/res/drawable-nodpi/cosmic_journey_thumbnail.png` for Compose's resource loader. The app build depends on both tasks.
+`syncPuzzleThumbnails` also copies the generated thumbnail to `app/src/main/res/drawable-nodpi/cosmic_journey_thumbnail.png` for Compose's resource loader.
+
+`puzzles/catalog.json` is the catalog source of truth. `generatePuzzleCatalog` validates every registered definition against its already generated package and writes `app/src/main/assets/puzzles/catalog.json` with ID, title, category, asset root, thumbnail resource name, piece count, availability, lock state, and optional legacy progress ID. The app build depends on package generation, thumbnail sync, and catalog generation. Runtime parses the catalog once at application startup; it never scans assets during composition or rendering.
 
 Per-piece metadata contains normalized vertices, UVs, triangle indices, final position, width/height, bounds, and reveal order. Runtime validates `formatVersion` and consumes this data without cropping, slicing, thumbnail generation, or triangulation.
 
@@ -43,7 +45,7 @@ The Gradle task declares the definition and source image as inputs and the gener
 Run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :asset-pipeline:test :asset-pipeline:generatePuzzleAssets :asset-pipeline:syncPuzzleThumbnails
+powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :asset-pipeline:test :asset-pipeline:generatePuzzleAssets :asset-pipeline:syncPuzzleThumbnails :asset-pipeline:generatePuzzleCatalog
 ```
 
 Generated files are committed so ordinary runtime startup never requires generator tooling. Review generated diffs with the definition/source change.

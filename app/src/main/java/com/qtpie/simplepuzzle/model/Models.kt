@@ -29,9 +29,10 @@ data class UserSettings(
 )
 
 data class PuzzleInfo(
-    val id: Int,
+    val id: String,
     val name: String,
     val imageResId: Int,
+    val assetRoot: String,
     val totalPieces: Int = 16,
     val isLocked: Boolean = false,
     val isCompleted: Boolean = false,

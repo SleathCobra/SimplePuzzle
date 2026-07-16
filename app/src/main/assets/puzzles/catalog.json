@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "puzzles": [
+    {
+      "puzzleId": "cosmic-journey",
+      "title": "Cosmic Journey",
+      "category": "Space",
+      "generatedAssetRoot": "puzzles/cosmic-journey",
+      "thumbnailResourceName": "cosmic_journey_thumbnail",
+      "pieceCount": 30,
+      "available": true,
+      "initiallyLocked": false,
+      "legacyProgressId": "puzzle-1"
+    }
+  ]
+}

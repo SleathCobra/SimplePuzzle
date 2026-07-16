@@ -23,19 +23,24 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.core.model.GraphicsQuality
+import com.qtpie.simplepuzzle.core.model.BoardMutationId
+import com.qtpie.simplepuzzle.core.model.BoardMutationType
+import com.qtpie.simplepuzzle.core.model.PendingBoardMutation
 import com.qtpie.simplepuzzle.renderer.gdx.PuzzleRendererFragment
 import com.qtpie.simplepuzzle.renderer.gdx.PuzzleRendererHostViewModel
 import com.qtpie.simplepuzzle.renderer.gdx.RendererCommand
 
 @Composable
 fun GdxPuzzleBoard(
+    assetRoot: String,
     visiblePieces: Set<Int>,
-    revealingPiece: Int?,
+    sessionGeneration: Long,
+    pendingBoardMutation: PendingBoardMutation?,
     graphicsQuality: GraphicsQuality,
     reducedMotion: Boolean,
     incorrectFeedbackTrigger: Int,
     isCompleted: Boolean,
-    onRevealFinished: (Int) -> Unit,
+    onMutationFinished: (BoardMutationId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val activity = LocalContext.current.findFragmentActivity()
@@ -45,14 +50,14 @@ fun GdxPuzzleBoard(
     }
     val controller = hostViewModel.controller
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val currentRevealCallback by rememberUpdatedState(onRevealFinished)
+    val currentMutationCallback by rememberUpdatedState(onMutationFinished)
 
     DisposableEffect(controller) {
         val mainHandler = Handler(Looper.getMainLooper())
-        controller.setRevealFinishedListener { pieceIndex ->
-            mainHandler.post { currentRevealCallback(pieceIndex) }
+        controller.setMutationFinishedListener { mutationId ->
+            mainHandler.post { currentMutationCallback(mutationId) }
         }
-        onDispose { controller.setRevealFinishedListener(null) }
+        onDispose { controller.setMutationFinishedListener(null) }
     }
 
     DisposableEffect(lifecycle, controller) {
@@ -67,17 +72,37 @@ fun GdxPuzzleBoard(
         onDispose { lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(visiblePieces) {
-        controller.submit(RendererCommand.SetVisiblePieces(visiblePieces.sorted().toIntArray()))
+    LaunchedEffect(visiblePieces, sessionGeneration, pendingBoardMutation, reducedMotion) {
+        controller.submit(
+            RendererCommand.SetVisiblePieces(
+                pieceIndices = visiblePieces.sorted().toIntArray(),
+                sessionGeneration = sessionGeneration,
+            ),
+        )
+        pendingBoardMutation?.let { mutation ->
+            when (mutation.type) {
+                BoardMutationType.REVEAL -> {
+                    controller.submit(RendererCommand.CorrectAnswerEffect)
+                    controller.submit(
+                        RendererCommand.RevealPiece(
+                            mutationId = mutation.id,
+                            pieceIndex = mutation.pieceId.value,
+                            reducedMotion = reducedMotion,
+                        ),
+                    )
+                }
+                BoardMutationType.REMOVE -> controller.submit(
+                    RendererCommand.RemovePiece(
+                        mutationId = mutation.id,
+                        pieceIndex = mutation.pieceId.value,
+                        reducedMotion = reducedMotion,
+                    ),
+                )
+            }
+        }
     }
     LaunchedEffect(graphicsQuality) {
         controller.submit(RendererCommand.SetQuality(graphicsQuality))
-    }
-    LaunchedEffect(revealingPiece, reducedMotion) {
-        revealingPiece?.let { pieceIndex ->
-            controller.submit(RendererCommand.CorrectAnswerEffect)
-            controller.submit(RendererCommand.RevealPiece(pieceIndex, reducedMotion))
-        }
     }
     LaunchedEffect(incorrectFeedbackTrigger) {
         if (incorrectFeedbackTrigger > 0) controller.submit(RendererCommand.IncorrectAnswerEffect)
@@ -96,22 +121,25 @@ fun GdxPuzzleBoard(
                     if (fragmentManager.findFragmentByTag(PuzzleRendererFragment.TAG) == null &&
                         !fragmentManager.isStateSaved
                     ) {
+                        val fragment = PuzzleRendererFragment.newInstance(assetRoot)
                         fragmentManager.commitNow {
                             replace(
                                 id,
-                                PuzzleRendererFragment.newInstance(),
+                                fragment,
                                 PuzzleRendererFragment.TAG,
                             )
                         }
+                        setTag(R.id.puzzle_renderer_fragment_owner, fragment)
                     }
                 }
             }
         },
-        onRelease = {
-            val fragment = fragmentManager.findFragmentByTag(PuzzleRendererFragment.TAG)
-            if (fragment != null && !fragmentManager.isStateSaved) {
+        onRelease = { container ->
+            val fragment = container.getTag(R.id.puzzle_renderer_fragment_owner) as? PuzzleRendererFragment
+            if (fragment != null && fragment in fragmentManager.fragments && !fragmentManager.isStateSaved) {
                 fragmentManager.commitNow { remove(fragment) }
             }
+            container.setTag(R.id.puzzle_renderer_fragment_owner, null)
         },
     )
 }

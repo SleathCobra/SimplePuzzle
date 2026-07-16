@@ -8,6 +8,17 @@ import org.junit.Test
 
 class PieceSetTest {
     @Test
+    fun removalIsBoundedAndCannotProduceANegativeCount() {
+        val revealed = PieceSet.Empty.reveal(PieceId(2), pieceCount = 4)
+
+        val removed = revealed.remove(PieceId(2), pieceCount = 4)
+        val duplicate = removed.remove(PieceId(2), pieceCount = 4)
+
+        assertEquals(0, removed.size)
+        assertEquals(removed, duplicate)
+    }
+
+    @Test
     fun reveal_supportsPuzzleSizesBeyondLongBitMasks() {
         val completed = (0 until 70).fold(PieceSet.Empty) { pieces, index ->
             pieces.reveal(PieceId(index), pieceCount = 70)

@@ -21,6 +21,8 @@ Compose owns conventional Android UI and accessibility. `core-game` owns determi
 - Domain state is immutable and changes only through `GameAction` reduction.
 - Compose observes coarse lifecycle-aware screen state.
 - One-shot renderer work is expressed as `RendererCommand` and acknowledged explicitly.
+- Local modes are immutable catalog definitions composed from reusable clock, mistake, piece-penalty, completion, and scoring policies.
+- App timing uses monotonic semantic deadlines; display interpolation is local UI state and never a reducer tick.
 - Renderer animation arrays and particle pools never enter `StateFlow`.
 - Room and DataStore expose repository flows and never run from composition or `render()`.
 
@@ -32,11 +34,11 @@ Compose owns conventional Android UI and accessibility. `core-game` owns determi
 - transient effects are pooled;
 - renderer resources have one owner and deterministic disposal;
 - configuration changes reuse an Activity-scoped command controller while the Fragment backend recreates the surface resources;
-- future multi-puzzle support swaps packages at a lifecycle boundary, not inside the hot loop.
+- title package switching waits for an idle animation boundary and recreates the preview Fragment; package I/O never enters the hot loop.
 
 ## Persistence target
 
-Room stores exact puzzle progress, best scores, attempts, completion timestamps, and session summaries. DataStore stores preferences only. A future schema version will persist exact revealed piece IDs and resumable reducer state; large images and mesh blobs remain generated assets, never database rows.
+Room v2 stores aggregate puzzle progress, mode-aware sessions, and independent per-mode best metrics. DataStore stores preferences and the last selected mode only. A future schema version may persist exact revealed piece IDs and resumable reducer/timer state; large images and mesh blobs remain generated assets, never database rows.
 
 ## Asset implementation
 
@@ -44,4 +46,4 @@ Format 2 implements deterministic tab topology, complementary adjacent boundarie
 
 ## Verification target
 
-Host tests cover rules, mapping, serialization, generation, timing, pools, and command ordering. Device tests cover Room, navigation, lifecycle/surface recreation, accessibility, screenshots at multiple window sizes, and repeated gameplay entry/exit. Macrobenchmark and Perfetto measurements use the minified profileable variant on declared hardware; performance claims always include device, OS, refresh rate, build, iterations, and raw trace/report location.
+Host tests cover all mode policies, timer races, mutation acknowledgement/replay, mapping, persistence, catalog generation, preview sequences, pools, and command ordering. Device tests cover Room migration, mode navigation, title/game surface handoff, accessibility, multiple window sizes, and repeated entry/exit. Macrobenchmark and Perfetto measurements use the minified profileable variant on declared hardware; performance claims always include device, OS, refresh rate, build, iterations, and raw trace/report location.

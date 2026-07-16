@@ -1,0 +1,279 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "dc7858550fd9f728c50139de42d975a8",
+    "entities": [
+      {
+        "tableName": "puzzle_progress",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`puzzleId` TEXT NOT NULL, `revealedPieces` INTEGER NOT NULL, `totalPieces` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `bestScore` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `completedAtEpochMillis` INTEGER, `lastPlayedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`puzzleId`))",
+        "fields": [
+          {
+            "fieldPath": "puzzleId",
+            "columnName": "puzzleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revealedPieces",
+            "columnName": "revealedPieces",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "totalPieces",
+            "columnName": "totalPieces",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestScore",
+            "columnName": "bestScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempts",
+            "columnName": "attempts",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastPlayedAtEpochMillis",
+            "columnName": "lastPlayedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "puzzleId"
+          ]
+        }
+      },
+      {
+        "tableName": "game_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `puzzleId` TEXT NOT NULL, `score` INTEGER NOT NULL, `correctAnswers` INTEGER NOT NULL, `incorrectAnswers` INTEGER NOT NULL, `durationMillis` INTEGER NOT NULL, `completed` INTEGER NOT NULL, `endedAtEpochMillis` INTEGER NOT NULL, `modeId` TEXT NOT NULL DEFAULT 'classic', `outcome` TEXT NOT NULL DEFAULT 'abandoned', `timeoutCount` INTEGER NOT NULL DEFAULT 0, `maximumCombo` INTEGER NOT NULL DEFAULT 1, `piecesRevealed` INTEGER NOT NULL DEFAULT 0, `piecesRemoved` INTEGER NOT NULL DEFAULT 0, `livesRemaining` INTEGER, FOREIGN KEY(`puzzleId`) REFERENCES `puzzle_progress`(`puzzleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "puzzleId",
+            "columnName": "puzzleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "score",
+            "columnName": "score",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correctAnswers",
+            "columnName": "correctAnswers",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "incorrectAnswers",
+            "columnName": "incorrectAnswers",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "durationMillis",
+            "columnName": "durationMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completed",
+            "columnName": "completed",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "endedAtEpochMillis",
+            "columnName": "endedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modeId",
+            "columnName": "modeId",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'classic'"
+          },
+          {
+            "fieldPath": "outcome",
+            "columnName": "outcome",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'abandoned'"
+          },
+          {
+            "fieldPath": "timeoutCount",
+            "columnName": "timeoutCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "maximumCombo",
+            "columnName": "maximumCombo",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "piecesRevealed",
+            "columnName": "piecesRevealed",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "piecesRemoved",
+            "columnName": "piecesRemoved",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "livesRemaining",
+            "columnName": "livesRemaining",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_game_sessions_puzzleId",
+            "unique": false,
+            "columnNames": [
+              "puzzleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_game_sessions_puzzleId` ON `${TABLE_NAME}` (`puzzleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "puzzle_progress",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "puzzleId"
+            ],
+            "referencedColumns": [
+              "puzzleId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "mode_bests",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`puzzleId` TEXT NOT NULL, `modeId` TEXT NOT NULL, `bestScore` INTEGER NOT NULL, `fastestCompletionMillis` INTEGER, `highestCombo` INTEGER NOT NULL, `fewestMistakes` INTEGER, `mostRecentCompletionEpochMillis` INTEGER, PRIMARY KEY(`puzzleId`, `modeId`), FOREIGN KEY(`puzzleId`) REFERENCES `puzzle_progress`(`puzzleId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "puzzleId",
+            "columnName": "puzzleId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modeId",
+            "columnName": "modeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bestScore",
+            "columnName": "bestScore",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fastestCompletionMillis",
+            "columnName": "fastestCompletionMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "highestCombo",
+            "columnName": "highestCombo",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fewestMistakes",
+            "columnName": "fewestMistakes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "mostRecentCompletionEpochMillis",
+            "columnName": "mostRecentCompletionEpochMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "puzzleId",
+            "modeId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_mode_bests_puzzleId",
+            "unique": false,
+            "columnNames": [
+              "puzzleId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_mode_bests_puzzleId` ON `${TABLE_NAME}` (`puzzleId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "puzzle_progress",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "puzzleId"
+            ],
+            "referencedColumns": [
+              "puzzleId"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'dc7858550fd9f728c50139de42d975a8')"
+    ]
+  }
+}

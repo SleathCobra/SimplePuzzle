@@ -3,6 +3,7 @@ package com.qtpie.simplepuzzle.core.data.progress
 import com.qtpie.simplepuzzle.core.model.GameSessionSummary
 import com.qtpie.simplepuzzle.core.model.PuzzleId
 import com.qtpie.simplepuzzle.core.model.PuzzleProgress
+import com.qtpie.simplepuzzle.core.model.ModeBest
 import com.qtpie.simplepuzzle.core.model.Score
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -23,6 +24,10 @@ interface ProgressRepository {
     suspend fun saveProgress(puzzleId: PuzzleId, revealedPieces: Int, totalPieces: Int, score: Score)
 
     suspend fun completePuzzle(summary: GameSessionSummary)
+
+    suspend fun recordSession(summary: GameSessionSummary)
+
+    suspend fun getModeBests(): List<ModeBest>
 
     suspend fun restore(progress: PuzzleProgress)
 
@@ -59,6 +64,12 @@ class RoomProgressRepository(
     override suspend fun completePuzzle(summary: GameSessionSummary) {
         dao.completePuzzle(summary)
     }
+
+    override suspend fun recordSession(summary: GameSessionSummary) {
+        dao.recordSession(summary)
+    }
+
+    override suspend fun getModeBests(): List<ModeBest> = dao.getModeBests().map(ModeBestEntity::toModel)
 
     override suspend fun restore(progress: PuzzleProgress) {
         dao.upsert(

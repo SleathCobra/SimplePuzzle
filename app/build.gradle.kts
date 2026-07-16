@@ -77,5 +77,9 @@ dependencies {
 }
 
 tasks.named("preBuild").configure {
-    dependsOn(":asset-pipeline:generatePuzzleAssets", ":asset-pipeline:syncPuzzleThumbnails")
+    dependsOn(
+        ":asset-pipeline:generatePuzzleAssets",
+        ":asset-pipeline:syncPuzzleThumbnails",
+        ":asset-pipeline:generatePuzzleCatalog",
+    )
 }

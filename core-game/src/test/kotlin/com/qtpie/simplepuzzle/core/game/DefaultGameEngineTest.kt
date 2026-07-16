@@ -5,6 +5,8 @@ import com.qtpie.simplepuzzle.core.model.GameAction
 import com.qtpie.simplepuzzle.core.model.GameConfiguration
 import com.qtpie.simplepuzzle.core.model.GameEvent
 import com.qtpie.simplepuzzle.core.model.GamePhase
+import com.qtpie.simplepuzzle.core.model.GameModeCatalog
+import com.qtpie.simplepuzzle.core.model.GameModeId
 import com.qtpie.simplepuzzle.core.model.MathOperation
 import com.qtpie.simplepuzzle.core.model.MathQuestion
 import com.qtpie.simplepuzzle.core.model.PieceId
@@ -23,32 +25,49 @@ class DefaultGameEngineTest {
     )
 
     @Test
+    fun classicRemainsTheDefaultUntimedMode() {
+        val engine = engine()
+        val state = startedState(engine, pieceCount = 3)
+
+        assertEquals(GameModeId.CLASSIC, state.modeId)
+        assertEquals(GameModeCatalog.Classic, state.modeRules)
+        assertTrue(state.modeRules.clock.isUntimed)
+    }
+
+    @Test
     fun correctAnswerScoresThenWaitsForRevealCompletion() {
         val engine = engine()
         val started = startedState(engine, pieceCount = 3)
 
         val answered = engine.reduce(started, GameAction.SelectAnswer(started.question.answer))
 
-        assertEquals(GamePhase.REVEALING_PIECE, answered.state.phase)
+        assertEquals(GamePhase.MUTATING_BOARD, answered.state.phase)
         assertEquals(10, answered.state.score.value)
         assertEquals(2, answered.state.combo)
         assertEquals(0, answered.state.revealedPieces.size)
-        assertEquals(PieceId(0), answered.state.pendingPiece)
+        assertEquals(PieceId(0), answered.state.pendingBoardMutation?.pieceId)
         assertEquals(
             listOf(
                 GameEvent.CorrectAnswer(PieceId(0)),
                 GameEvent.ScoreChanged(com.qtpie.simplepuzzle.core.model.Score(10)),
                 GameEvent.ComboChanged(2),
+                GameEvent.BoardMutationStarted(requireNotNull(answered.state.pendingBoardMutation)),
             ),
             answered.events,
         )
 
-        val revealed = engine.reduce(answered.state, GameAction.RevealAnimationFinished)
+        val revealed = finishMutation(engine, answered.state)
 
         assertEquals(GamePhase.AWAITING_ANSWER, revealed.state.phase)
         assertEquals(1, revealed.state.revealedPieces.size)
-        assertNull(revealed.state.pendingPiece)
-        assertEquals(listOf(GameEvent.PieceRevealed(PieceId(0))), revealed.events)
+        assertNull(revealed.state.pendingBoardMutation)
+        assertEquals(
+            listOf(
+                GameEvent.BoardMutationCommitted(requireNotNull(answered.state.pendingBoardMutation)),
+                GameEvent.PieceRevealed(PieceId(0)),
+            ),
+            revealed.events,
+        )
     }
 
     @Test
@@ -89,13 +108,16 @@ class DefaultGameEngineTest {
         state = answerCorrectlyAndFinish(engine, state)
 
         val answer = engine.reduce(state, GameAction.SelectAnswer(state.question.answer))
-        val finish = engine.reduce(answer.state, GameAction.RevealAnimationFinished)
+        val finish = finishMutation(engine, answer.state)
 
         assertEquals(GamePhase.COMPLETED, finish.state.phase)
         assertEquals(2, finish.state.revealedPieces.size)
         assertEquals(1, finish.events.count { it == GameEvent.PuzzleCompleted })
 
-        val duplicateFinish = engine.reduce(finish.state, GameAction.RevealAnimationFinished)
+        val duplicateFinish = engine.reduce(
+            finish.state,
+            GameAction.BoardMutationFinished(requireNotNull(answer.state.pendingBoardMutation).id),
+        )
         val duplicateAnswer = engine.reduce(finish.state, GameAction.SelectAnswer(finish.state.question.answer))
         assertTrue(duplicateFinish.events.isEmpty())
         assertTrue(duplicateAnswer.events.isEmpty())
@@ -127,7 +149,7 @@ class DefaultGameEngineTest {
 
         val revealing = engine.reduce(started, GameAction.SelectAnswer(started.question.answer)).state
         val pausedRevealing = engine.reduce(revealing, GameAction.Pause).state
-        assertEquals(GamePhase.REVEALING_PIECE, pausedRevealing.resumePhase)
+        assertEquals(GamePhase.MUTATING_BOARD, pausedRevealing.resumePhase)
         assertEquals(revealing, engine.reduce(pausedRevealing, GameAction.Resume).state)
     }
 
@@ -177,8 +199,16 @@ class DefaultGameEngineTest {
 
     private fun answerCorrectlyAndFinish(engine: GameEngine, state: com.qtpie.simplepuzzle.core.model.GameState): com.qtpie.simplepuzzle.core.model.GameState {
         val answered = engine.reduce(state, GameAction.SelectAnswer(state.question.answer))
-        return engine.reduce(answered.state, GameAction.RevealAnimationFinished).state
+        return finishMutation(engine, answered.state).state
     }
+
+    private fun finishMutation(
+        engine: GameEngine,
+        state: com.qtpie.simplepuzzle.core.model.GameState,
+    ) = engine.reduce(
+        state,
+        GameAction.BoardMutationFinished(requireNotNull(state.pendingBoardMutation).id),
+    )
 
     private fun question(
         left: Int,

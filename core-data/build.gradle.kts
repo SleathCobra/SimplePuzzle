@@ -23,6 +23,13 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addStaticSourceDirectory("$projectDir/schemas")
+    }
 }
 
 ksp {

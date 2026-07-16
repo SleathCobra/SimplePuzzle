@@ -8,6 +8,10 @@ Functional and diagnostic measurements were collected on the `Medium_Phone` Andr
 
 These results do not represent real-device FPS, frame time, memory limits, thermals, power, or high-refresh behavior. The Macrobenchmark source retains the emulator guard; `EMULATOR` was suppressed only on explicit one-off diagnostic commands.
 
+## Game modes and animated-title evidence status
+
+The mode/timer/removal/title-preview implementation added on 2026-07-16 has host, build and functional API 37 emulator evidence, but no new Macrobenchmark or Perfetto measurement is recorded yet. Room instrumentation passes 5/5 and app instrumentation passes 3/3, including repeated title/gallery recreation and Classic-to-timed renderer handoff. Android CLI deployment, screenshots and layout inspection confirmed the animated and reduced-motion title, mode selection, all five mode HUDs, a Survival out-of-hearts result, and a 30-piece Classic completion result. The preview uses precomputed meshes and one package texture, package changes recreate the Fragment at an idle operation boundary, the preview is capped at 30 FPS, timer display interpolation does not write `StateFlow`, and preview code has no repository dependency. These are structural and functional observations, not measured frame-time, memory, power, or leak results; the screenshots are ignored local verification artifacts under `build/` and historical numbers below predate this feature work.
+
 ## Runtime verification
 
 - Android CLI deployed the APK and produced title/game/gallery/settings screenshots plus semantics layouts.
@@ -16,7 +20,7 @@ These results do not represent real-device FPS, frame time, memory limits, therm
 - Supporting memory snapshots were about 144 MiB PSS before and 146 MiB after the five-cycle stress journey. This two-snapshot AVD variance is not proof of leak freedom, but it did not expose monotonic retention.
 - A debug `dumpsys gfxinfo` sample reported 1.18% modern jank and 50th/90th/95th/99th frame times of 23/26/27/30 ms. The legacy metric reported 96.81% jank, illustrating why this debug-emulator sample is not a production claim.
 - Reduced motion and LOW graphics persisted through force-stop/relaunch; defaults were restored afterward. Reset progress displayed an explicit destructive confirmation and Cancel preserved data.
-- Room instrumentation passed 2/2 tests; app instrumentation passed 1/1.
+- Before the mode/preview work, Room instrumentation passed 2/2 tests and app instrumentation passed 1/1; the current expanded counts are recorded above.
 
 ## Macrobenchmark diagnostic
 
@@ -62,9 +66,9 @@ The final benchmark's retained iteration 4 trace independently revalidated the a
 | generated 768 px active texture | 1,705,709 bytes |
 | generated 320 px thumbnail | 311,804 bytes |
 | format-2 manifest, 30 tabbed pieces | 96,892 bytes |
-| current debug APK | 30,645,481 bytes |
-| minified benchmark APK | 8,275,632 bytes |
-| minified release APK | 8,275,600 bytes |
+| current debug APK | 31,242,738 bytes |
+| minified benchmark APK | 8,327,905 bytes |
+| minified release APK | 8,315,585 bytes |
 
 APK sizes are packaging facts, not runtime performance results.
 
