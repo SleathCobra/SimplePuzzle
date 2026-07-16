@@ -13,7 +13,7 @@ The port uses a strangler approach and keeps a runnable application after each s
 | 6. Effects/lifecycle | Complete for first profile set | fixed-step timing, clamped resume, pooled sparkles, reveal/shake/completion effects, quality/reduced motion, disposal |
 | 7. Compose shell | Complete for current screens | lifecycle collection, cached background, adaptive keyed gallery, thumbnail, settings persistence/confirmation and emulator screenshot QA |
 | 8. Performance | Emulator diagnostics complete | minified profileable target, passing diagnostic journeys, generated profiles/traces, Perfetto audit; physical measurements remain |
-| 9. Cleanup | In progress | legacy Compose renderer removed after device parity; final aggregate verification/docs remain |
+| 9. Cleanup | Complete for current repository scope | legacy Compose renderer removed; final host, connected emulator, benchmark, release and lint verification passed |
 
 ## Next implementation actions
 

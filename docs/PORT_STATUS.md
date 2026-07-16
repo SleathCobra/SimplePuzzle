@@ -2,6 +2,8 @@
 
 Last updated: 2026-07-16.
 
+Current implementation details and operational knowledge are consolidated in `docs/REPOSITORY_KNOWLEDGE.md`; this file tracks scope and remaining work rather than serving as an architecture specification.
+
 | Phase | State | Evidence / remaining work |
 |---|---|---|
 | 0. Toolchain | Complete | Android CLI SDK discovery, embedded JBR recovery, wrappers, doctor, Gradle validation |
@@ -24,7 +26,7 @@ Last updated: 2026-07-16.
 - renderer progression: correct answer -> reveal command -> renderer callback -> reducer completion;
 - release-like target: non-debuggable, R8 minified, resource-shrunk, profileable `benchmark` variant;
 - native packaging: `libgdx.so` present for arm64-v8a, armeabi-v7a, x86, and x86_64;
-- connected device: API 37 `Medium_Phone` AVD; functional evidence only.
+- device validation evidence: an API 37 AVD run is recorded in `docs/PERFORMANCE_RESULTS.md`; do not assume a device is currently connected;
 - renderer batching: all static revealed pieces use one preallocated index-buffer draw; the active reveal uses one additional draw.
 
 ## Verified commands
@@ -50,4 +52,4 @@ Repeat Macrobenchmark, gameplay Perfetto journeys, audio checks and 90/120 Hz re
 - Stable Baseline Profile Gradle plugin 1.4.1 rejects this AGP 9 application model. Raw generator output is R8-obfuscated, so it is not safe to copy into source without compatible mapping/rewrite integration.
 - Two SoundPool samples reported emulator codec decode failures; playback remained crash-free, but physical-device audio compatibility remains to be checked.
 - Exact mid-session piece identity is not yet persisted.
-- PDF rendering utilities are unavailable; the report's Typst source and all referenced images were inspected instead.
+- PDF rendering/extraction utilities were unavailable during knowledge consolidation. The Typst source and present reference files were inspected, but `docs/reference/report.typ` also references absent images and cannot currently reproduce the checked-in historical PDF.

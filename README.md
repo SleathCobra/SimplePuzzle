@@ -1,6 +1,6 @@
 # Jigsaw Math
 
-Jigsaw Math is an Android educational game that rewards correct mental-math answers by revealing a puzzle image. The repository is being migrated incrementally from a Compose-only prototype to a hybrid architecture:
+Jigsaw Math is an Android educational game that rewards correct mental-math answers by revealing a puzzle image. The implemented application uses a hybrid architecture:
 
 - Compose owns navigation, title, gallery, settings, gameplay HUD, questions, and accessible controls.
 - a pure Kotlin reducer owns deterministic game rules;
@@ -9,7 +9,7 @@ Jigsaw Math is an Android educational game that rewards correct mental-math answ
 - libGDX/KTX owns the real-time puzzle board and effects;
 - a JVM generator produces versioned puzzle textures, thumbnails, and mesh manifests before runtime.
 
-The current branch contains an end-to-end hybrid slice for Cosmic Journey with deterministic tabbed meshes. Host and connected emulator tests pass, runtime lifecycle/settings/rendering have been exercised, and a minified benchmark variant produces Macrobenchmark traces and Baseline Profile output. Emulator measurements are diagnostic; authoritative performance work still requires a physical device.
+The repository contains an end-to-end hybrid slice for Cosmic Journey with deterministic tabbed meshes. Host and connected emulator tests have passed, runtime lifecycle/settings/rendering have been exercised, and a minified benchmark variant produces Macrobenchmark traces and Baseline Profile output. Emulator measurements are diagnostic; authoritative performance work still requires a physical device. See [repository knowledge](docs/REPOSITORY_KNOWLEDGE.md) for current entry points, flows, limitations, and debugging procedures.
 
 ## Modules
 

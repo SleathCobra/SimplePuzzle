@@ -27,23 +27,21 @@ The JDK is resolved independently, in this order:
 
 Every selected candidate must pass `<jdk>\bin\java.exe -version`. Gradle compatibility is then established with `tools/gradle.ps1 --version`.
 
-## Verified baseline (2026-07-16)
+## Repository compatibility
 
-- Android CLI: `1.0.15857036`
-- SDK source: the root returned by `android info`
-- installed platform-tools: `37.0.0`
-- installed Build Tools: `36.0.0`, `36.1.0`, and `37.0.0`
-- installed platforms: Android `36.1` and `37.0`
-- JDK: Android Studio bundled JBR, OpenJDK `21.0.10`
-- JDK discovery source: recovery from an existing malformed `JAVA_HOME` ending in `jbr\bin`
-- Gradle Wrapper: `9.6.0`
-- Gradle daemon criteria: Java 21
-- connected device: `Medium_Phone` AVD (`emulator-5554`), Android 17/API 37, x86_64
-- Android Studio CLI: installed; no running Studio instance, so IDE integration is currently unavailable but non-blocking
+The tracked sources currently require:
 
-The SDK's optional `cmdline-tools` directory was not present. Android CLI and all packages required by the current build were available, so no SDK installation or broad update was performed.
+- Android Gradle Plugin `9.2.1` and Gradle Wrapper `9.6.0`;
+- Kotlin `2.2.10`;
+- compile SDK 37, target SDK 36, and minimum SDK 24;
+- Java 11 source/target bytecode;
+- a compatible Android Studio bundled JBR selected and validated dynamically by the wrapper.
 
-An initial direct `android describe --project_dir=.` exposed the malformed ambient `JAVA_HOME`. Re-running the command after dot-sourcing `tools/android-env.ps1` completed successfully and located the debug APK. No permanent environment setting was changed.
+These values come from `gradle/libs.versions.toml`, `gradle/wrapper/gradle-wrapper.properties`, and module build files. Installed SDK package revisions, JBR patch versions, Android Studio connection state, and connected devices are machine state: inspect them with `android info` and `tools/android-doctor.ps1` rather than copying them into tracked documentation.
+
+Some Windows setups persist `JAVA_HOME` or `STUDIO_GRADLE_JDK` as `<android-studio-jbr>\bin`. Gradle requires the JBR root. `tools/android-env.ps1` considers valid configured candidates first and can recover the parent JBR as a final process-local compatibility fallback. It never rewrites the machine setting.
+
+Run `android describe` after dot-sourcing `tools/android-env.ps1` because the command invokes the repository Gradle Wrapper and must inherit the resolved JBR. No permanent environment setting is required.
 
 The wrappers intentionally use raw `$args`; advanced PowerShell parameter binding consumed single-dash adb options such as `-W` and `-a`. When a new outer `powershell -File` process must pass a Gradle `-P...` property literally, put `--%` before the Gradle task/arguments, for example:
 
@@ -57,21 +55,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 --% :benc
 
 ```powershell
 android info
-android describe --project_dir=.
 android sdk list "platform-tools|build-tools|platforms" --all-versions
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\android-doctor.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -Command ". .\tools\android-env.ps1; android describe --project_dir=."
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 --version
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :app:assembleDebug
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 test
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 lint
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\adb.ps1 devices -l
-```
-
-To describe the project when the machine's ambient Java configuration is invalid:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command ". .\tools\android-env.ps1; android describe --project_dir=."
 ```
 
 Do not commit `local.properties`, machine reports, SDK/JDK absolute paths, or changes made only to accommodate one workstation.

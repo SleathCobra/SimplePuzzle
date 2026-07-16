@@ -67,14 +67,14 @@ Expected architectural improvements, not yet measured:
 
 ## Resolution status
 
-- Findings 1 and 2: replaced in gameplay by one libGDX surface consuming precomputed mesh data. The legacy Compose renderer remains unused in source until on-device parity validation.
+- Findings 1 and 2: replaced in gameplay by one libGDX surface consuming precomputed mesh data. The legacy Compose renderer was removed after replacement verification, including connected-emulator gameplay and lifecycle validation.
 - Finding 3: the infinite progress gradient was replaced by a bounded progress animation; renderer animation remains off Compose state.
 - Finding 4: root collection is now lifecycle-aware. Further screen-level state slicing can still reduce parameter invalidation.
 - Finding 5: the generator emits a 768 px active texture and 320 px thumbnail; title/gallery consume the thumbnail.
 - Music fade scopes are now owned/cancelled; Room/DataStore operations use structured scopes and transactional repository APIs.
 - A non-debuggable, profileable, minified/resource-shrunk benchmark target and separate Macrobenchmark/BaselineProfileRule module now compile.
 
-These changes are verified structurally and by build/tests only. Their runtime effect remains unmeasured without a device.
+These changes are verified structurally, by build/tests, and by connected-emulator functional, lifecycle, and diagnostic Macrobenchmark runs recorded in `docs/PERFORMANCE_RESULTS.md`. Physical-device frame pacing, thermals, memory ceilings, audio compatibility, and high-refresh behavior remain unmeasured.
 
 ## Measurement plan
 
