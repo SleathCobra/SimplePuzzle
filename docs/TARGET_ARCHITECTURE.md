@@ -6,15 +6,16 @@ The migration target is a buildable set of one-way dependencies:
 
 ```text
 app / feature UI
-  -> core-game -> core-model
-  -> core-data -> core-model
+  -> core-game -> (core-model, core-learning)
+  -> core-data -> (core-model, core-learning)
+  -> core-learning
   -> renderer-gdx -> core-model
 
 asset-pipeline -> core-model
 benchmark -> app benchmark artifact
 ```
 
-Compose owns conventional Android UI and accessibility. `core-game` owns deterministic behavior. `core-data` owns persistence and migration. `renderer-gdx` owns frame-timed board state and native graphics resources. `asset-pipeline` owns all expensive, reproducible puzzle preprocessing.
+Compose owns conventional Android UI and accessibility. `core-game` owns deterministic Jigsaw behavior and its learning adapter. `core-learning` owns versioned, activity-independent formative evidence contracts and policy. `core-data` owns persistence and migration. `renderer-gdx` owns frame-timed board state and native graphics resources. `asset-pipeline` owns all expensive, reproducible puzzle preprocessing.
 
 ## State ownership
 
@@ -23,6 +24,7 @@ Compose owns conventional Android UI and accessibility. `core-game` owns determi
 - One-shot renderer work is expressed as `RendererCommand` and acknowledged explicitly.
 - Renderer animation arrays and particle pools never enter `StateFlow`.
 - Room and DataStore expose repository flows and never run from composition or `render()`.
+- Accepted answers create append-only evidence independently of renderer acknowledgement; the acknowledgement advances only logical puzzle progression.
 
 ## Renderer invariants
 
@@ -36,7 +38,7 @@ Compose owns conventional Android UI and accessibility. `core-game` owns determi
 
 ## Persistence target
 
-Room stores exact puzzle progress, best scores, attempts, completion timestamps, and session summaries. DataStore stores preferences only. A future schema version will persist exact revealed piece IDs and resumable reducer state; large images and mesh blobs remain generated assets, never database rows.
+Room schema 2 stores aggregate puzzle progress, best scores, append-only local learning attempts, completion timestamps, and game/learning session summaries. DataStore stores preferences only. A future schema version will persist exact revealed piece IDs and resumable reducer state; large images and mesh blobs remain generated assets, never database rows.
 
 ## Asset implementation
 

@@ -42,7 +42,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showResetConfirmation = false },
             title = { Text("Reset all progress?") },
-            text = { Text("Scores, puzzle progress, and session history will be permanently deleted.") },
+            text = { Text("Scores, puzzle progress, session history, and local learning evidence will be permanently deleted.") },
             confirmButton = {
                 TextButton(
                     onClick = {

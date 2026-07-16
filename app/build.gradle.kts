@@ -47,6 +47,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core-learning"))
     implementation(project(":core-game"))
     implementation(project(":core-data"))
     implementation(project(":renderer-gdx"))

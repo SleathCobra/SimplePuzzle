@@ -4,11 +4,14 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.room.Room
+import com.qtpie.simplepuzzle.core.data.learning.LearningRepository
+import com.qtpie.simplepuzzle.core.data.learning.RoomLearningRepository
 import com.qtpie.simplepuzzle.core.data.migration.EmptyLegacyProgressSource
 import com.qtpie.simplepuzzle.core.data.migration.LegacyProgressMigrator
 import com.qtpie.simplepuzzle.core.data.preferences.DataStorePreferencesRepository
 import com.qtpie.simplepuzzle.core.data.preferences.PreferencesRepository
 import com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase
+import com.qtpie.simplepuzzle.core.data.progress.MIGRATION_1_2
 import com.qtpie.simplepuzzle.core.data.progress.ProgressRepository
 import com.qtpie.simplepuzzle.core.data.progress.RoomProgressRepository
 import kotlinx.coroutines.CoroutineScope
@@ -23,7 +26,7 @@ class JigsawDataContainer(
         applicationContext,
         JigsawMathDatabase::class.java,
         DATABASE_NAME,
-    ).build()
+    ).addMigrations(MIGRATION_1_2).build()
 
     private val preferencesDataStore = PreferenceDataStoreFactory.create(
         scope = applicationScope,
@@ -31,6 +34,7 @@ class JigsawDataContainer(
     )
 
     val progressRepository: ProgressRepository = RoomProgressRepository(database.progressDao())
+    val learningRepository: LearningRepository = RoomLearningRepository(database.learningDao())
     val preferencesRepository: PreferencesRepository =
         DataStorePreferencesRepository(preferencesDataStore)
 

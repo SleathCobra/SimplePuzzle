@@ -6,8 +6,10 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- Phase 1 learning evidence is intentionally local-only. The Room file
+         also contains existing puzzle progress, so neither is sent through
+         Android Auto Backup during the supervised pilot. -->
+    <exclude domain="database" path="jigsaw-math.db" />
+    <exclude domain="database" path="jigsaw-math.db-shm" />
+    <exclude domain="database" path="jigsaw-math.db-wal" />
 </full-backup-content>

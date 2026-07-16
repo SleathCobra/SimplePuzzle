@@ -34,6 +34,8 @@ class MainActivity : FragmentActivity(), AndroidFragmentApplication.Callbacks {
         GameViewModel.Factory(
             preferencesRepository = container.preferencesRepository,
             progressRepository = container.progressRepository,
+            learningRepository = container.learningRepository,
+            applicationVersion = packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown",
         )
     }
 
@@ -68,6 +70,7 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
     object Gallery : Screen("gallery")
     object Game : Screen("game")
+    object Learning : Screen("learning")
 }
 
 @Composable
@@ -82,6 +85,7 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
     val puzzles by viewModel.puzzles.collectAsStateWithLifecycle()
+    val learningSummaries by viewModel.learningSummaries.collectAsStateWithLifecycle()
     val currentSettings by rememberUpdatedState(settings)
     var musicReady by remember { mutableStateOf(false) }
 
@@ -154,6 +158,10 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                         playUiSound(SoundEffect.NAVIGATION)
                         navController.navigate(Screen.Settings.route)
                     },
+                    onLearningClick = {
+                        playUiSound(SoundEffect.NAVIGATION)
+                        navController.navigate(Screen.Learning.route)
+                    },
                 )
             }
             
@@ -201,6 +209,16 @@ fun SimplePuzzleApp(viewModel: GameViewModel = viewModel()) {
                         playUiSound(SoundEffect.NAVIGATION)
                         navController.popBackStack()
                     }
+                )
+            }
+
+            composable(Screen.Learning.route) {
+                LearningSummaryScreen(
+                    summaries = learningSummaries,
+                    onBack = {
+                        playUiSound(SoundEffect.NAVIGATION)
+                        navController.popBackStack()
+                    },
                 )
             }
         }

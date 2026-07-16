@@ -8,8 +8,9 @@ Updated 2026-07-16 after emulator verification of the hybrid gameplay slice.
 SimplePuzzle/
 |- app/                 Compose application shell and Android wiring
 |- core-model/          immutable domain models and serialized manifest schema
-|- core-game/           pure Kotlin reducer, random source, rules, and tests
-|- core-data/           Room, DataStore, repositories, and migrations
+|- core-learning/       pure versioned taxonomy, attempts, and evidence policy
+|- core-game/           pure Kotlin reducer, random source, rules, and Jigsaw learning adapter
+|- core-data/           Room progress/learning, DataStore, repositories, and migrations
 |- asset-pipeline/      deterministic JVM image/manifest generator
 |- renderer-gdx/        libGDX/KTX Android renderer and command bridge
 |- benchmark/           Macrobenchmark and Baseline Profile journeys
@@ -25,6 +26,7 @@ Compose input
   -> GameViewModel
   -> pure GameEngine.reduce(action)
   -> immutable state + one-shot domain events
+  -> Jigsaw learning adapter -> append-only Room attempt
   -> stable Compose HUD state
   -> coarse RendererCommand queue
   -> libGDX fixed-step simulation and GPU draw
@@ -37,7 +39,7 @@ Compose does not own particle locations, reveal interpolation, frame delta, or b
 
 ## Application shell
 
-`MainActivity` is a `FragmentActivity` because libGDX's Android fragment backend owns the rendering surface. It also hosts Compose navigation for title, gallery, gameplay, and settings. Root flows use `collectAsStateWithLifecycle`. Sound, music, and haptic feedback have composition-scoped owners and release/cancel their resources.
+`MainActivity` is a `FragmentActivity` because libGDX's Android fragment backend owns the rendering surface. It also hosts Compose navigation for title, gallery, gameplay, settings, and the local My Learning summary. Root flows use `collectAsStateWithLifecycle`. Sound, music, and haptic feedback have composition-scoped owners and release/cancel their resources.
 
 The application background is a cached Compose drawing, avoiding a full-screen bitmap decode on the first frame. The title preview is a static generated thumbnail. The gallery uses an adaptive lazy grid, stable keys/content types, and the same low-resolution placeholder until additional puzzle-specific source art is added. Gameplay remains a Compose HUD around one `FragmentContainerView` containing `PuzzleRendererFragment`.
 
@@ -45,20 +47,22 @@ Gameplay exit first pauses the reducer and synchronously removes the renderer Fr
 
 ## Pure game engine
 
-`core-game` has no Android, Compose, persistence, or libGDX dependency. `DefaultGameEngine` accepts a seeded `RandomSource`, creates valid unique answer choices, applies scoring/combo rules, blocks duplicate answers while revealing, and separates logical correctness from visual completion. `PieceSet` is not limited to a 64-bit mask.
+`core-game` has no Android, Compose, persistence, or libGDX dependency. `DefaultGameEngine` accepts a seeded `RandomSource`, creates deterministic valid unique addition choices for the Phase 1 pilot, applies scoring/combo rules, blocks duplicate answers while revealing, and separates logical correctness from visual completion. `PieceSet` is not limited to a 64-bit mask.
 
-`GameViewModel` is the strangler adapter between legacy screen models and the pure engine. Correct answers set a pending piece; progression changes only after the renderer reports that exact piece complete. Stale or duplicate callbacks are ignored.
+`core-learning` is an independent Kotlin/JVM module with stable versioned IDs, the approved Grade 2 Quarter 1 taxonomy, immutable attempts, and deterministic policy-version-1 summaries. `JigsawLearningItemFactory` maps reviewed addition items to regrouping/no-regrouping skills; arbitrary distractors receive no misconception tag.
+
+`GameViewModel` is the strangler adapter between legacy screen models and the pure engine. Every accepted answer queues exactly one learning attempt without blocking gameplay. Correct answers set a pending piece; progression changes only after the renderer reports that exact piece complete. Stale or duplicate callbacks are ignored and renderer completion records no additional attempt.
 
 ## Persistence
 
 `JigsawMathApplication` owns one `JigsawDataContainer` with:
 
-- a Room database for puzzle progress and game sessions;
+- Room schema 2 for puzzle progress/game sessions plus append-only learning attempts/local learning sessions;
 - a DataStore for sound, music, haptics, difficulty, graphics quality, reduced motion, and migration state;
 - repositories mapping persistence entities to domain models;
 - a one-time legacy migration boundary. The inspected prototype had no durable legacy progress, so the current legacy source is explicitly empty.
 
-Completion/reset operations are transactional. I/O runs in structured application/ViewModel scopes. Current persistence restores aggregate revealed-piece counts, completion, scores, and attempts; exact mid-session piece identity/resume is a documented remaining feature.
+`MIGRATION_1_2` preserves schema-1 rows and creates empty learning tables without fabricating item history. Attempt/session updates and full reset are transactional; reset leaves DataStore preferences intact. I/O runs in structured application/ViewModel scopes. Current persistence restores aggregate revealed-piece counts, completion, scores, and attempts; exact mid-session piece identity/resume is a documented remaining feature.
 
 ## Asset pipeline
 
@@ -83,4 +87,4 @@ Revealed pieces are copied into a preallocated index buffer only when coarse rev
 
 ## Build and performance infrastructure
 
-The `benchmark` app build type is non-debuggable, debug-signed, minified by R8, resource-shrunk, and profileable. The separate `benchmark` test module contains startup, navigation, and Baseline Profile journeys. All journeys execute on the API 37 emulator when the emulator warning is explicitly suppressed for diagnostic runs. The stable Baseline Profile Gradle plugin 1.4.1 rejected the AGP 9 application model; raw generated rules are R8-obfuscated and therefore are not copied into source without the plugin's mapping/rewrite support.
+The `benchmark` app build type is non-debuggable, debug-signed, minified by R8, resource-shrunk, and profileable. The separate `benchmark` test module contains startup, navigation, local-evidence, and Baseline Profile journeys. All journeys execute on the API 37 emulator when the emulator warning is explicitly suppressed for diagnostic runs. The stable Baseline Profile Gradle plugin 1.4.1 rejected the AGP 9 application model; raw generated rules are R8-obfuscated and therefore are not copied into source without the plugin's mapping/rewrite support.

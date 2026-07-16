@@ -66,6 +66,7 @@ data class MathQuestion(
     val rightOperand: Int,
     val answer: Int,
     val options: List<Int>,
+    val provenance: MathQuestionProvenance? = null,
 ) {
     init {
         require(leftOperand >= 0 && rightOperand >= 0) {
@@ -81,6 +82,23 @@ data class MathQuestion(
 
     val problem: String
         get() = "$leftOperand ${operation.symbol} $rightOperand"
+}
+
+data class MathQuestionProvenance(
+    val generatorId: String,
+    val generatorVersion: Int,
+    val contentVersion: Int,
+    val seed: Long,
+    val configuration: Map<String, String>,
+) {
+    init {
+        require(generatorId.isNotBlank()) { "Question generator ID cannot be blank." }
+        require(generatorVersion > 0) { "Question generator version must be positive." }
+        require(contentVersion > 0) { "Question content version must be positive." }
+        require(configuration.keys.none(String::isBlank)) {
+            "Question generator configuration keys cannot be blank."
+        }
+    }
 }
 
 class PieceSet private constructor(

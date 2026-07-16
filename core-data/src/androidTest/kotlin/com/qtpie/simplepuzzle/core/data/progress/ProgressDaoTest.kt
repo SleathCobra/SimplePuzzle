@@ -6,6 +6,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.qtpie.simplepuzzle.core.model.GameSessionSummary
 import com.qtpie.simplepuzzle.core.model.PuzzleId
 import com.qtpie.simplepuzzle.core.model.Score
+import com.qtpie.simplepuzzle.core.data.learning.LearningAttemptEntity
+import com.qtpie.simplepuzzle.core.learning.AttemptOutcome
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -71,10 +73,26 @@ class ProgressDaoTest {
                 endedAtEpochMillis = 20L,
             ),
         )
+        database.learningDao().recordAttempt(
+            LearningAttemptEntity(
+                attemptId = "attempt-reset-001",
+                sessionId = "session-reset-001",
+                activityId = "jm.activity.jigsaw-math",
+                activityVersion = 1,
+                skillId = "math.addition.to-1000-without-regrouping",
+                templateId = "jm.template.reset",
+                occurredAtEpochMillis = 10,
+                supersedesAttemptId = null,
+                payloadJson = "{}",
+            ),
+            AttemptOutcome.CORRECT,
+        )
 
         dao.resetAll()
 
         assertEquals(null, dao.get("cosmic"))
         assertEquals(0, dao.sessionCount())
+        assertEquals(0, database.learningDao().attemptCount())
+        assertEquals(0, database.learningDao().sessionCount())
     }
 }

@@ -5,10 +5,15 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.core.data.preferences.PreferencesRepository
+import com.qtpie.simplepuzzle.core.data.learning.LearningRepository
+import com.qtpie.simplepuzzle.core.data.learning.SystemLearningClock
 import com.qtpie.simplepuzzle.core.data.progress.ProgressRepository
 import com.qtpie.simplepuzzle.core.game.DefaultGameEngine
 import com.qtpie.simplepuzzle.core.game.GameEngine
+import com.qtpie.simplepuzzle.core.game.JigsawLearningAttemptFactory
 import com.qtpie.simplepuzzle.core.game.SeededRandomSource
+import com.qtpie.simplepuzzle.core.learning.PersonalSkillSummary
+import com.qtpie.simplepuzzle.core.learning.SessionId
 import com.qtpie.simplepuzzle.core.model.GameAction
 import com.qtpie.simplepuzzle.core.model.GameConfiguration
 import com.qtpie.simplepuzzle.core.model.GameEvent
@@ -19,6 +24,7 @@ import com.qtpie.simplepuzzle.core.model.PlayerPreferences
 import com.qtpie.simplepuzzle.core.model.PuzzleId
 import com.qtpie.simplepuzzle.core.model.Score
 import com.qtpie.simplepuzzle.model.*
+import com.qtpie.simplepuzzle.learning.UuidLearningIdSource
 import com.qtpie.simplepuzzle.core.model.Difficulty as EngineDifficulty
 import com.qtpie.simplepuzzle.core.model.MathQuestion as EngineMathQuestion
 import kotlinx.coroutines.Job
@@ -52,7 +58,7 @@ enum class SoundEffect {
 }
 
 data class GameUiState(
-    val currentQuestion: MathQuestion = generateMathQuestion(),
+    val currentQuestion: MathQuestion = MathQuestion(problem = "", answer = 0, options = emptyList()),
     val unlockedPieces: Set<Int> = emptySet(),
     val revealingPiece: Int? = null,
     val score: Int = 0,
@@ -81,6 +87,8 @@ class GameViewModel(
     ),
     private val preferencesRepository: PreferencesRepository? = null,
     private val progressRepository: ProgressRepository? = null,
+    private val learningRepository: LearningRepository? = null,
+    private val learningAttemptFactory: JigsawLearningAttemptFactory? = null,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(GameUiState())
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
@@ -91,14 +99,20 @@ class GameViewModel(
     private val _userProfile = MutableStateFlow(UserProfileState())
     val userProfile: StateFlow<UserProfileState> = _userProfile.asStateFlow()
 
+    private val _learningSummaries = MutableStateFlow<List<PersonalSkillSummary>>(emptyList())
+    val learningSummaries: StateFlow<List<PersonalSkillSummary>> = _learningSummaries.asStateFlow()
+
     private val _soundEvent = MutableSharedFlow<SoundEffect>()
     val soundEvent: SharedFlow<SoundEffect> = _soundEvent.asSharedFlow()
 
     private var wrongAnswersInARow = 0
     private var engineState: GameState? = null
     private var persistenceJob: Job? = null
+    private var learningPersistenceJob: Job? = null
     private var correctAnswers = 0
     private var incorrectAnswers = 0
+    private var learningSessionId: SessionId? = null
+    private var questionAttemptOrdinal: Int = 1
 
     private val _puzzles = MutableStateFlow(listOf(
         PuzzleInfo(1, "Cosmic Journey", R.drawable.cosmic_journey_thumbnail, 30, false, false, "Space", unlockCost = 0),
@@ -138,6 +152,10 @@ class GameViewModel(
                 }
             }
             ?.launchIn(viewModelScope)
+
+        learningRepository?.summaries
+            ?.onEach { summaries -> _learningSummaries.value = summaries }
+            ?.launchIn(viewModelScope)
     }
 
     private fun playSound(effect: SoundEffect) {
@@ -166,6 +184,8 @@ class GameViewModel(
             action = GameAction.Start,
         ).state
         engineState = startedState
+        learningSessionId = learningAttemptFactory?.newSessionId()
+        questionAttemptOrdinal = 1
         correctAnswers = 0
         incorrectAnswers = 0
         _uiState.update { it.copy(
@@ -260,6 +280,25 @@ class GameViewModel(
             )
         }
 
+        val sessionId = learningSessionId
+        val attemptFactory = learningAttemptFactory
+        val repository = learningRepository
+        if (sessionId != null && attemptFactory != null && repository != null) {
+            val attempt = attemptFactory.create(
+                sessionId = sessionId,
+                question = currentEngineState.question,
+                difficulty = currentEngineState.difficulty,
+                selectedAnswer = option,
+                attemptOrdinal = questionAttemptOrdinal,
+            )
+            enqueueLearningPersistence {
+                repository.recordAttempt(attempt)
+            }
+        }
+        if (events.any { it is GameEvent.IncorrectAnswer }) {
+            questionAttemptOrdinal++
+        }
+
     }
 
     fun onRevealAnimationFinished(pieceIndex: Int) {
@@ -274,6 +313,7 @@ class GameViewModel(
 
         val finalState = transition.state
         engineState = finalState
+        questionAttemptOrdinal = 1
         playSound(SoundEffect.PIECE_PLACED)
         _uiState.update { current ->
             current.copy(
@@ -391,6 +431,9 @@ class GameViewModel(
     fun resetProgress() {
         timerJob?.cancel()
         engineState = null
+        learningSessionId = null
+        questionAttemptOrdinal = 1
+        val pendingLearningPersistence = learningPersistenceJob
         val clearUi = {
             _userProfile.update { UserProfileState() }
             _uiState.update { GameUiState() }
@@ -399,6 +442,10 @@ class GameViewModel(
             clearUi()
         } else {
             enqueuePersistence {
+                // Room clears progression and learning evidence in one transaction.
+                // Order that transaction after every already-accepted answer so a
+                // delayed learning write cannot repopulate the database after reset.
+                pendingLearningPersistence?.join()
                 progressRepository.resetAll()
                 clearUi()
             }
@@ -413,9 +460,19 @@ class GameViewModel(
         }
     }
 
+    private fun enqueueLearningPersistence(block: suspend () -> Unit) {
+        val previous = learningPersistenceJob
+        learningPersistenceJob = viewModelScope.launch {
+            previous?.join()
+            block()
+        }
+    }
+
     class Factory(
         private val preferencesRepository: PreferencesRepository,
         private val progressRepository: ProgressRepository,
+        private val learningRepository: LearningRepository,
+        private val applicationVersion: String,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -423,6 +480,12 @@ class GameViewModel(
             return GameViewModel(
                 preferencesRepository = preferencesRepository,
                 progressRepository = progressRepository,
+                learningRepository = learningRepository,
+                learningAttemptFactory = JigsawLearningAttemptFactory(
+                    clock = SystemLearningClock,
+                    idSource = UuidLearningIdSource(),
+                    applicationVersion = applicationVersion,
+                ),
             ) as T
         }
     }

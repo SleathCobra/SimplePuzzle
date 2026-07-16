@@ -1,7 +1,6 @@
 package com.qtpie.simplepuzzle.model
 
 import com.qtpie.simplepuzzle.core.model.GraphicsQuality
-import kotlin.random.Random
 
 data class MathQuestion(
     val problem: String,
@@ -40,23 +39,3 @@ data class PuzzleInfo(
     val maxScore: Int = 0,
     val unlockCost: Int = 50
 )
-
-fun generateMathQuestion(difficulty: Difficulty = Difficulty.Medium): MathQuestion {
-    val range = when (difficulty) {
-        Difficulty.Easy -> 1..20
-        Difficulty.Medium -> 10..50
-        Difficulty.Hard -> 50..150
-    }
-    
-    val a = Random.nextInt(range.first, range.last)
-    val b = Random.nextInt(range.first, range.last)
-    val op = if (Random.nextBoolean()) "+" else "-"
-    val answer = if (op == "+") a + b else a - b
-    
-    val options = mutableSetOf(answer)
-    while (options.size < 4) {
-        val wrong = answer + Random.nextInt(-10, 11)
-        if (wrong != answer) options.add(wrong)
-    }
-    return MathQuestion("$a $op $b", answer, options.toList().shuffled())
-}

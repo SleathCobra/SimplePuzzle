@@ -4,7 +4,9 @@ This document describes the current implementation. It complements the operation
 
 ## 1. Repository overview
 
-Jigsaw Math is a native Android mental-math game. A correct answer starts a jigsaw-piece reveal; the pure reducer commits that piece only after the renderer acknowledges animation completion. Conventional UI is Compose, the board is one embedded libGDX surface, rules are pure Kotlin, structured progress is Room, preferences are DataStore, and puzzle geometry/images are generated before runtime.
+Jigsaw Math is a native Android mental-math game. A correct answer starts a jigsaw-piece reveal; the pure reducer commits that piece only after the renderer acknowledges animation completion. Conventional UI is Compose, the board is one embedded libGDX surface, rules are pure Kotlin, structured progress and local learning evidence are Room-backed, preferences are DataStore-backed, and puzzle geometry/images are generated before runtime.
+
+Academy Phase 1 adds only a local formative-evidence foundation for the owner-approved Philippine DepEd MATATAG Grade 2 Quarter 1 Number and Algebra scope. Current Jigsaw items emit evidence for symbolic addition with/without regrouping. It adds no accounts, classroom, cloud, social, predictive-mastery, or Number Line Expedition functionality.
 
 The application ID and package root are `com.qtpie.simplepuzzle`. The app compiles with SDK 37, targets SDK 36, supports API 24+, and emits Java 11 bytecode. Version sources of truth are `gradle/libs.versions.toml`, `gradle/wrapper/gradle-wrapper.properties`, and the module build files.
 
@@ -14,21 +16,22 @@ The original product report and visual references are under `docs/reference/`. T
 
 | Module | Responsibility | Direct project dependencies |
 |---|---|---|
-| `app` | Application startup, dependency wiring, Compose navigation/screens, ViewModel adapter, Android audio/haptics, renderer host | `core-game`, `core-data`, `renderer-gdx` |
+| `app` | Application startup, dependency wiring, Compose navigation/screens and learner summary, ViewModel adapter, Android audio/haptics, renderer host | `core-learning`, `core-game`, `core-data`, `renderer-gdx` |
 | `core-model` | Immutable game/progress models, preferences model, serialized puzzle definition/manifest | none |
-| `core-game` | Deterministic reducer, questions, scoring, difficulty policies, random abstraction | `core-model` |
-| `core-data` | Room database/repository, DataStore repository, legacy migration boundary | `core-model` |
+| `core-learning` | Versioned skill/curriculum/activity/item contracts, immutable attempts, taxonomy validation, deterministic evidence and personal summaries | none |
+| `core-game` | Deterministic reducer, addition questions, scoring, difficulty policies, random abstraction, Jigsaw learning adapter | `core-model`, `core-learning` |
+| `core-data` | Room progress/learning repositories and migrations, DataStore repository, legacy migration boundary | `core-model`, `core-learning` |
 | `asset-pipeline` | JVM ImageIO scaling, deterministic tab topology, triangulation, hashing, JSON output | `core-model` |
 | `renderer-gdx` | Android Fragment backend, command queue, mesh preparation, fixed-step simulation, pooled effects, GPU ownership | `core-model` |
 | `benchmark` | Self-instrumenting Macrobenchmark and BaselineProfileRule journeys | targets the `app` benchmark artifact |
 
-The dependency graph is deliberately one-way. In particular, `core-game` has no Android dependency, `core-data` has no UI dependency, and `renderer-gdx` has no repository or ViewModel dependency.
+The dependency graph is deliberately one-way. In particular, `core-learning` and `core-game` have no Android dependency, `core-data` has no UI dependency, and `renderer-gdx` has no repository, learning, or ViewModel dependency.
 
 ## 3. Application startup and navigation
 
 `app/src/main/AndroidManifest.xml` names `JigsawMathApplication` and exports only the launcher `MainActivity`.
 
-`JigsawMathApplication.onCreate` creates one `JigsawDataContainer` with an application-owned `SupervisorJob + Dispatchers.IO` scope and launches `JigsawDataContainer.initialize`. Initialization currently runs the guarded legacy-migration boundary.
+`JigsawMathApplication.onCreate` creates one `JigsawDataContainer` with an application-owned `SupervisorJob + Dispatchers.IO` scope and launches `JigsawDataContainer.initialize`. The container exposes progress, preferences, and learning repositories; initialization runs the guarded legacy-migration boundary.
 
 `MainActivity`:
 
@@ -43,6 +46,7 @@ The dependency graph is deliberately one-way. In particular, `core-game` has no 
 ```text
 start -> gallery -> game
 start -> settings
+start -> learning
 ```
 
 Title, gallery, settings, and gameplay state are collected with `collectAsStateWithLifecycle`. `JigsawMathBackground` uses `drawWithCache`; it replaced first-frame decoding of a full-screen background image.
@@ -53,16 +57,19 @@ The authoritative rules live in `core-game`:
 
 1. `GameViewModel.selectPuzzle` creates `GameConfiguration`, calls `GameEngine.newGame`, reduces `GameAction.Start`, maps the immutable result into `GameUiState`, starts the timer, and queues a Room attempt.
 2. `GameViewModel.onAnswerSelected` reduces `SelectAnswer` only when the reducer is awaiting an answer.
-3. A wrong answer resets combo through the reducer and increments the coarse Compose shake trigger; it does not advance the puzzle.
-4. A correct answer moves the reducer to `REVEALING_PIECE`, assigns `pendingPiece`, updates score/combo, and exposes that pending index as `GameUiState.revealingPiece`. The piece is not yet in `revealedPieces`.
-5. The renderer completes its animation and invokes `GameViewModel.onRevealAnimationFinished(pieceIndex)`.
-6. The ViewModel validates phase and exact piece, reduces `RevealAnimationFinished`, maps the committed piece into UI state, saves aggregate progress, and completes the Room transaction if the final piece was revealed.
+3. After the reducer accepts the answer, `JigsawLearningAttemptFactory` maps the current deterministic question and selected integer into one immutable attempt. `GameViewModel` queues it on a learning-persistence chain independent of score/render progression; a lifecycle/reveal callback cannot create another attempt.
+4. A wrong answer resets combo through the reducer and increments the coarse Compose shake trigger; it does not advance the puzzle.
+5. A correct answer moves the reducer to `REVEALING_PIECE`, assigns `pendingPiece`, updates score/combo, and exposes that pending index as `GameUiState.revealingPiece`. The piece is not yet in `revealedPieces`.
+6. The renderer completes its animation and invokes `GameViewModel.onRevealAnimationFinished(pieceIndex)`.
+7. The ViewModel validates phase and exact piece, reduces `RevealAnimationFinished`, maps the committed piece into UI state, saves aggregate progress, and completes the Room transaction if the final piece was revealed. This callback records no learning attempt.
 
-`DefaultGameEngine` is deterministic for a supplied `RandomSource`. `GameViewModel` currently constructs it with `SeededRandomSource(DEFAULT_GAME_SEED)`. `DefaultMathQuestionGenerator` prevents negative subtraction answers and produces four unique non-negative choices. `StandardScoringPolicy` awards `10 * combo` before the combo increments.
+`DefaultGameEngine` is deterministic for a supplied `RandomSource`. `GameViewModel` currently constructs it with `SeededRandomSource(DEFAULT_GAME_SEED)`. For the approved Phase 1 content boundary, `DefaultMathQuestionGenerator` emits addition only, generates one item seed from the engine random source, and reproduces the same operands/options from seed, generator version, content version, difficulty, and option count. The engine retains subtraction support for existing authored/test questions, but the Academy adapter rejects it. `StandardScoringPolicy` awards `10 * combo` before the combo increments.
 
 `PieceSet` is a value backed by a Kotlin set and is tested beyond 64 pieces. The engine accepts arbitrary positive piece counts; 30 is a property of the current generated package, not a reducer limit.
 
-The ViewModel is still a strangler adapter: `app/model/Models.kt` contains UI-specific `Difficulty`, `MathQuestion`, `PuzzleInfo`, and `UserSettings` alongside mapping functions in `GameViewModel.kt`. Room progress writes are serialized by `enqueuePersistence`, which joins the previous job before running the next repository operation. DataStore preference writes use independent `viewModelScope` jobs.
+The ViewModel is still a strangler adapter: `app/model/Models.kt` contains UI-specific `Difficulty`, `MathQuestion`, `PuzzleInfo`, and `UserSettings` alongside mapping functions in `GameViewModel.kt`. The obsolete UI random question fallback is removed; the core generator is authoritative. Room progress writes and learning writes use separate serialized queues so delayed evidence persistence cannot block gameplay progress. DataStore preference writes use independent `viewModelScope` jobs.
+
+`core-learning/InitialEvidencePolicy` derives summaries deterministically for an explicit as-of time. It keeps only the latest non-invalidated attempt per template as contributing evidence, applies documented retry/assistance/recency weights, requires five distinct templates before a status, and never uses elapsed time as a status signal. `LearningSummaryScreen` exposes supportive status language, counts, variety, and recency without a mastery percentage.
 
 ## 5. Compose-to-renderer command flow
 
@@ -80,6 +87,8 @@ The ViewModel is still a strangler adapter: `app/model/Models.kt` contains UI-sp
 `PuzzleRendererController` is a `ConcurrentLinkedQueue` plus an atomic reveal listener. `PuzzleRenderer.render` drains commands on the render thread before its fixed-step update. Reveal completion returns through the controller, is posted to the Android main looper by `GdxPuzzleBoard`, and reaches the latest Compose callback via `rememberUpdatedState`.
 
 Per-frame particle positions, reveal progress, camera shake, interpolation, and delta time never enter Compose state or `StateFlow`.
+
+Learning attempts and summaries do not cross this command flow. A correct answer can enqueue Room work and a `RevealPiece` independently; renderer completion only acknowledges reducer progression.
 
 ## 6. libGDX lifecycle and resource ownership
 
@@ -119,16 +128,18 @@ The current Gradle tasks and renderer default are hardcoded for Cosmic Journey. 
 
 - Room file `jigsaw-math.db` using `JigsawMathDatabase`;
 - Preferences DataStore file `jigsaw-math.preferences_pb`;
-- `RoomProgressRepository` and `DataStorePreferencesRepository`;
+- `RoomProgressRepository`, `RoomLearningRepository`, and `DataStorePreferencesRepository`;
 - `LegacyProgressMigrator`.
 
-Room version 1 stores `PuzzleProgressEntity` and `GameSessionEntity`. `ProgressDao` wraps attempt start, progress updates, completion plus session insert, and full progress reset in transactions. The schema export is committed under `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/1.json`.
+Room version 2 stores existing `PuzzleProgressEntity`/`GameSessionEntity` plus `LearningAttemptEntity` and `LearningSessionEntity`. `MIGRATION_1_2` creates the learning tables and indices while leaving every schema-1 row unchanged. Both schema exports are committed under `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/`.
+
+`LearningDao.recordAttemptAndUpdateSession` inserts an immutable serialized attempt with `IGNORE` conflict handling and updates its session aggregate in one transaction only when the insert succeeds. The production repository exposes no attempt-update/delete-by-ID operation. Corrections are later append-only attempts with explicit supersession/invalidation fields. Derived skill summaries are recomputed from raw rows rather than stored as authoritative values.
 
 DataStore persists sound/music enablement and volume, haptics, difficulty, graphics quality, reduced motion, and the legacy-migration-complete flag. Enum reads fall back safely when stored text is unknown.
 
 `LegacyProgressMigrator` runs at application initialization and marks its flag after importing. The currently wired `EmptyLegacyProgressSource` imports no rows; the abstraction and its test establish idempotence but do not constitute a real legacy reader.
 
-Room currently stores only the revealed-piece count, not exact identities or complete reducer state. Selecting a puzzle starts a fresh engine. Unlock state, coins, UI background-music mode, and optional confetti are not all persisted. Reset All Progress clears Room progress/session rows transactionally and leaves preferences intact.
+Room currently stores only the revealed-piece count, not exact identities or complete reducer state. Selecting a puzzle starts a fresh engine. Unlock state, coins, UI background-music mode, and optional confetti are not all persisted. Reset All Progress clears progress/session rows and learning attempts/sessions in one transaction while leaving preferences intact. Existing aggregate rows are preserved through migration but are never expanded into fabricated historical attempts. Android backup/transfer rules exclude the Room database for this local-only child-data pilot.
 
 ## 9. Audio and haptics
 
@@ -159,15 +170,16 @@ There are currently no workflows under `.github/workflows`; verification is loca
 The verified host command is documented in `docs/TESTING.md` and exercises:
 
 - `core-model`: scalable `PieceSet` invariants;
-- `core-game`: deterministic questions, choice validity, scoring, combos, wrong answers, reveal separation, completion, duplicate protection, pause/resume, restart, and >64 pieces;
-- `core-data`: DataStore round trip and legacy migration idempotence;
+- `core-learning`: stable IDs, taxonomy structure/cycles, immutable attempt correction metadata, deterministic evidence, insufficient evidence, diversity/near-duplicates, recency, assistance/retries, and response-time exclusion;
+- `core-game`: deterministic item reproduction/config identity, choice validity, Jigsaw learning mapping, scoring, combos, wrong answers, reveal separation, completion, duplicate protection, pause/resume, restart, and >64 pieces;
+- `core-data`: DataStore round trip, legacy migration idempotence, and learning entity/domain mapping;
 - `asset-pipeline`: byte determinism, serialization, validation, topology, complementary boundaries, area-preserving triangulation, and reveal ranks;
 - `renderer-gdx`: fixed-step clamp, particle reuse/capacity, mesh combination/validation, command ordering, and callback replacement;
-- `app`: reducer-to-UI mapping, wrong feedback, renderer-delayed progression, duplicate completion, and lifecycle pause.
+- `app`: reducer-to-UI mapping, correct/wrong attempt recording, delayed persistence, renderer-delayed progression without duplicate evidence, duplicate completion, and lifecycle pause.
 
-Device-dependent suites are `:core-data:connectedDebugAndroidTest` (Room DAO transactions/reset) and `:app:connectedDebugAndroidTest` (current package smoke test).
+Device-dependent suites are `:core-data:connectedDebugAndroidTest` (five Room DAO/migration/reset tests) and `:app:connectedDebugAndroidTest` (six learner-summary empty/status/semantics/large-text tests plus the package smoke assertion).
 
-The `app` benchmark build type is release-derived, non-debuggable, debug-signed, R8-minified, resource-shrunk, and profileable through `app/src/benchmark/AndroidManifest.xml`. The `benchmark` module measures cold title startup, title-to-settings, and title-to-gameplay for five iterations and contains a BaselineProfileRule journey through gameplay.
+The `app` benchmark build type is release-derived, non-debuggable, debug-signed, R8-minified, resource-shrunk, and profileable through `app/src/benchmark/AndroidManifest.xml`. The `benchmark` module measures cold title startup, title-to-settings, title-to-gameplay, and incorrect-answer-to-local-summary for five iterations and contains a BaselineProfileRule journey through gameplay.
 
 The benchmark source retains the emulator warning. Emulator results in `docs/PERFORMANCE_RESULTS.md` are diagnostic only. Raw generated Baseline Profile rules are R8-obfuscated and are not committed because the stable Baseline Profile plugin used during migration could not provide compatible mapping/rewrite integration for the existing AGP model.
 
@@ -179,10 +191,18 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 | `app/src/main/java/com/qtpie/simplepuzzle/MainActivity.kt` | `MainActivity`, `SimplePuzzleApp`, navigation and controlled renderer exit |
 | `app/src/main/java/com/qtpie/simplepuzzle/viewmodel/GameViewModel.kt` | engine/UI adapter, settings/progress collection, persistence ordering |
 | `core-model/src/main/kotlin/com/qtpie/simplepuzzle/core/model/GameModels.kt` | actions, events, phases, immutable state, preferences |
+| `core-learning/src/main/kotlin/com/qtpie/simplepuzzle/core/learning/Grade2Quarter1Taxonomy.kt` | version-1 approved skills/mapping and structural validator |
+| `core-learning/src/main/kotlin/com/qtpie/simplepuzzle/core/learning/LearningModels.kt` | versioned items, immutable attempts, evidence and summary contracts |
+| `core-learning/src/main/kotlin/com/qtpie/simplepuzzle/core/learning/InitialEvidencePolicy.kt` | transparent deterministic Phase 1 derivation |
 | `core-game/src/main/kotlin/com/qtpie/simplepuzzle/core/game/GameEngine.kt` | `DefaultGameEngine.reduce` |
 | `core-game/src/main/kotlin/com/qtpie/simplepuzzle/core/game/QuestionGenerator.kt` | difficulty policies and valid choices |
+| `core-game/src/main/kotlin/com/qtpie/simplepuzzle/core/game/JigsawLearningAdapter.kt` | deterministic Jigsaw item/attempt mapping |
 | `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/JigsawDataContainer.kt` | Room/DataStore wiring |
 | `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/progress/ProgressDao.kt` | atomic progress/session operations |
+| `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/progress/DatabaseMigrations.kt` | explicit `MIGRATION_1_2` |
+| `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/learning/LearningDao.kt` | append/session transaction and observation queries |
+| `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/learning/LearningRepository.kt` | entity/domain mapping and summary recomputation |
+| `app/src/main/java/com/qtpie/simplepuzzle/ui/screens/LearningSummaryScreen.kt` | cautious learner-facing local summary |
 | `app/src/main/java/com/qtpie/simplepuzzle/ui/components/GdxPuzzleBoard.kt` | Compose/Fragment/command bridge |
 | `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/PuzzleRendererFragment.kt` | libGDX Android backend creation |
 | `renderer-gdx/src/main/java/com/qtpie/simplepuzzle/renderer/gdx/PuzzleRenderer.kt` | resource creation, render loop, fixed-step effects, disposal |
@@ -198,6 +218,9 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 - **`AndroidGraphics: waiting for pause synchronization took too long` followed by process termination:** the FragmentContainerView detached before libGDX paused. Use the controlled `leaveGameplay` ordering; never pop navigation first.
 - **Benchmark journey starts on the wrong screen:** Android task state was reused. Navigation benchmarks must `pressHome`, `killProcess`, then `startActivityAndWait` in setup.
 - **Room instrumentation runner class not found:** `core-data` must keep `androidx.test:runner` in `androidTestImplementation`.
+- **Room reports an identity/schema mismatch after a learning change:** increment `JigsawMathDatabase` beyond version 2, add explicit migrations from supported versions, regenerate the committed schema, and run the migration plus DAO connected tests. Do not use destructive fallback.
+- **An accepted answer appears twice in learning evidence:** keep attempt creation after reducer acceptance, use one stable attempt ID per action delivery, and verify configuration/reveal callbacks never call `recordAttempt`. Room's `IGNORE` conflict handling is the final idempotency boundary, not a substitute for correct event ownership.
+- **Learning evidence reappears after Reset All Progress:** the ViewModel must stop accepting answers and join the captured learning-persistence tail before invoking the transactional Room reset. Do not merge renderer timing with persistence or block gameplay while ordinary attempts are recorded.
 - **Unsupported puzzle format:** renderer rejects a manifest whose `formatVersion` differs from `PUZZLE_FORMAT_VERSION`. Regenerate with compatible code; do not bypass validation.
 - **Non-triangulatable generated piece:** inspect seed/topology and the generator's strict-interior/collinear ear-clipping logic; never move triangulation to Android runtime.
 - **SoundPool decode errors on the API 37 emulator:** the app remains crash-safe, but codec compatibility must be checked on physical devices before changing audio ownership or suppressing diagnostics.
@@ -211,7 +234,7 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 4. For UI failures, use `android layout` before relying only on screenshots. Use `android screen capture` for visual evidence.
 5. For renderer lifecycle failures, inspect wrapper-based logcat for `AndroidGraphics`, verify the Fragment tag `jigsaw-math-puzzle-renderer`, repeat enter/exit and background/resume, and confirm the SurfaceView is absent after leaving gameplay.
 6. For asset failures, run `:asset-pipeline:test`, regenerate twice, inspect manifest version/hash/dimensions/piece count, and ensure the second run has no Git diff.
-7. For persistence changes, run host DataStore/migration tests and connected Room tests; inspect the committed Room schema diff before accepting it.
+7. For persistence changes, run host DataStore/mapping tests and connected Room migration/DAO tests; inspect the committed Room schema diff before accepting it. For learning rows, verify old aggregate rows survive and no item history is synthesized.
 8. For jank, use the minified profileable benchmark variant and Perfetto skills. Keep raw traces ignored and record only contextualized conclusions in `docs/PERFORMANCE_RESULTS.md`.
 
 ## 15. Known limitations
@@ -228,13 +251,16 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 - Music is composition-owned but is not explicitly paused/resumed with Activity backgrounding.
 - Physical-device frame pacing, memory ceilings, thermals, high-refresh behavior, and audio codec compatibility remain unmeasured.
 - Generated Baseline Profile output is not integrated into app source.
-- There is no CI workflow, screenshot test suite, automated renderer-surface recreation test, or Room version-upgrade migration test yet.
-- `app/src/main/res/xml/data_extraction_rules.xml` retains the template backup-policy TODO.
+- Academy evidence currently covers only generated symbolic addition with/without regrouping; the other 11 approved taxonomy skills have no reviewed Jigsaw content.
+- Taxonomy mappings and evidence-policy thresholds are unvalidated product assumptions, not diagnostic or mastery models.
+- Summary recency is recomputed on Room emissions/screen collection; wall-clock passage alone does not push a new summary value while a screen remains continuously collected.
+- Append-only attempt retention is currently until Reset All Progress or app-data removal; a broader pilot needs an educator/privacy-reviewed retention rule.
+- There is no CI workflow, screenshot test suite, or automated renderer-surface recreation test yet.
 - `docs/reference/report.typ` references image files that are absent from the checkout, so the historical PDF is not reproducible from source as-is. Poppler/PDF extraction utilities were unavailable during this consolidation; the Typst source and present references were inspected instead.
 
 ## 16. Remaining technical debt
 
-- Replace duplicated app UI models and `generateMathQuestion` fallback with domain-first immutable screen models.
+- Replace the remaining duplicated app UI models with domain-first immutable screen models; the obsolete UI-only random question fallback is already removed.
 - Build a manifest/repository-backed puzzle catalog and pass the selected asset root through the renderer bridge.
 - Persist exact revealed pieces, resumable game state, coins, and unlock state with explicit Room migrations.
 - Decide whether background music mode/confetti belong in DataStore and test compatibility if added.
@@ -245,7 +271,10 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 - Add CI for the verified host suite, lint, asset determinism, and debug/benchmark assembly.
 - Add automated navigation/surface recreation, adaptive screenshot/accessibility, and gameplay-specific Macrobenchmark journeys.
 - Integrate a stable mapped Baseline Profile when compatible tooling exists.
-- Complete Android backup/data-extraction policy and localization of user-facing strings.
+- Keep the Room backup/data-transfer exclusion reviewed as persistence scope changes, and localize user-facing strings.
+- Obtain educator/curriculum review for taxonomy version 1, generated-item distributions, regrouping mapping, and evidence-policy thresholds before presenting pilot summaries as credible educational interpretation.
+- Add a measured retention policy and explicit local evidence inspection/export decision before a broader pilot; Phase 1 intentionally has no automatic export.
+- Make summary recency refresh explicitly at screen entry/day boundaries without polling or main-thread work.
 
 ## 17. Relevant ADR index
 
@@ -254,3 +283,5 @@ The benchmark source retains the emulator warning. Emulator results in `docs/PER
 - `docs/adr/0003-precomputed-puzzle-assets.md`: deterministic format-2 assets and runtime-free triangulation.
 - `docs/adr/0004-android-studio-embedded-jbr.md`: Android CLI SDK discovery and dynamic bundled-JBR wrappers.
 - `docs/adr/0005-room-datastore-persistence-boundary.md`: structured progress in Room, preferences/migration flag in DataStore.
+- `docs/adr/0006-pure-kotlin-learning-foundation.md`: pure versioned learning contracts and Jigsaw adapter boundary.
+- `docs/adr/0007-append-only-local-learning-evidence.md`: Room v2 append-only attempts, derived summaries, reset and backup policy.

@@ -19,6 +19,7 @@ kotlin {
 
 dependencies {
     api(project(":core-model"))
+    api(project(":core-learning"))
     testImplementation(libs.junit)
 }
 

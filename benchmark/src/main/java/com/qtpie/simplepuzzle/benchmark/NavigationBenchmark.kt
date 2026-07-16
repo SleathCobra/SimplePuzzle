@@ -33,6 +33,23 @@ class NavigationBenchmark {
     }
 
     @Test
+    fun firstIncorrectAnswerToLearningSummary() = benchmarkRule.measureRepeated(
+        packageName = TARGET_PACKAGE,
+        metrics = listOf(FrameTimingMetric()),
+        compilationMode = CompilationMode.Partial(),
+        iterations = 5,
+        setupBlock = {
+            pressHome()
+            killProcess()
+            startActivityAndWait()
+            UiDevice.getInstance(InstrumentationRegistry.getInstrumentation()).openGameplay()
+        },
+    ) {
+        UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            .recordIncorrectAdditionAndOpenLearningSummary()
+    }
+
+    @Test
     fun titleToSettings() = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),

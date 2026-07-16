@@ -25,6 +25,7 @@ dependencyResolutionManagement {
 rootProject.name = "SimplePuzzle"
 include(":app")
 include(":core-model")
+include(":core-learning")
 include(":core-game")
 include(":core-data")
 include(":asset-pipeline")

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +26,7 @@ import com.qtpie.simplepuzzle.R
 fun StartScreen(
     onPlayClick: () -> Unit, 
     onSettingsClick: () -> Unit,
+    onLearningClick: () -> Unit,
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartbeat")
     val scale by infiniteTransition.animateFloat(
@@ -108,6 +110,26 @@ fun StartScreen(
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Surface(
+                    onClick = onLearningClick,
+                    modifier = Modifier.size(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 4.dp,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.School,
+                            contentDescription = "My learning",
+                            tint = Color(0xFF5A4FCF),
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))

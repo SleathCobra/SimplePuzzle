@@ -17,6 +17,8 @@ Maintain and extend Jigsaw Math, an Android educational game whose current imple
 
 The Compose-to-libGDX migration is complete for the current Cosmic Journey slice. Preserve the implemented boundaries and keep the application buildable and usable after every substantial change. Do not reintroduce the removed per-piece Compose renderer or treat historical migration documents as the current architecture; use `docs/REPOSITORY_KNOWLEDGE.md` and the accepted ADRs.
 
+Academy Phase 1 is also implemented as a local-only learning-evidence foundation for owner-approved Philippine DepEd MATATAG Grade 2 Quarter 1 addition practice. Preserve its cautious formative-use boundary: it is not diagnostic, grading, placement, predictive mastery, classroom/cloud, or social functionality. Use `docs/academy/FOUNDATION_SCOPE.md` and ADRs 0006–0007 as the source of truth.
+
 ---
 
 # Mandatory Windows toolchain contract
@@ -314,8 +316,9 @@ The Gradle modules declared by `settings.gradle.kts` are:
 
 - `app`: Android application, `JigsawMathApplication`, `MainActivity`, Compose navigation/screens, `GameViewModel`, Android audio and haptics, and dependency wiring;
 - `core-model`: pure Kotlin immutable domain models and the kotlinx.serialization puzzle schema;
-- `core-game`: pure Kotlin deterministic reducer, question generation, scoring, and seeded randomness;
-- `core-data`: Android Room/DataStore implementations, repositories, schema export, and the one-time legacy migration boundary;
+- `core-learning`: pure Kotlin versioned identifiers, Grade 2 Quarter 1 taxonomy, learning-item/attempt contracts, deterministic evidence policy, and personal summaries;
+- `core-game`: pure Kotlin deterministic reducer, question generation, scoring, seeded randomness, and the Jigsaw-to-learning adapter;
+- `core-data`: Android Room/DataStore implementations, progress and learning repositories, schema export/migrations, and the one-time legacy migration boundary;
 - `asset-pipeline`: Kotlin/JVM ImageIO generator and deterministic manifest/mesh/thumbnail production;
 - `renderer-gdx`: Android libGDX/KTX Fragment backend, command controller, mesh upload, fixed-step simulation, pooling, rendering, and GPU-resource ownership;
 - `benchmark`: self-instrumenting Macrobenchmark and BaselineProfileRule journeys targeting the `app` benchmark variant.
@@ -323,14 +326,15 @@ The Gradle modules declared by `settings.gradle.kts` are:
 Allowed production dependency direction:
 
 ```text
-app -> core-game -> core-model
-app -> core-data -> core-model
+app -> core-game -> (core-model, core-learning)
+app -> core-data -> (core-model, core-learning)
+app -> core-learning
 app -> renderer-gdx -> core-model
 asset-pipeline -> core-model
 benchmark -> app benchmark artifact
 ```
 
-`core-model` and `core-game` must remain free of Android, Compose, libGDX, Room, DataStore, and Android resources. `core-data` must not depend on UI or renderer modules. `renderer-gdx` must not depend on `app`, `core-game`, or `core-data`. Cross-boundary behavior uses immutable models, repository APIs, reducer actions/transitions, and `RendererCommand`; do not bypass these boundaries with Android contexts, global mutable state, or direct database access.
+`core-model`, `core-learning`, and `core-game` must remain free of Android, Compose, libGDX, Room, DataStore, WorkManager, network clients, and Android resources. `core-learning` must also avoid direct system-clock or random-ID access; inject `LearningClock` and `LearningIdSource` at application boundaries. `core-data` must not depend on UI or renderer modules. `renderer-gdx` must not depend on `app`, `core-game`, `core-learning`, or `core-data`. Cross-boundary behavior uses immutable models, repository APIs, reducer actions/transitions, learning adapters, and `RendererCommand`; do not bypass these boundaries with Android contexts, global mutable state, or direct database access.
 
 Version sources of truth are `gradle/libs.versions.toml`, `gradle/wrapper/gradle-wrapper.properties`, and module build files. The current build is already on AGP 9.2.1, Gradle 9.6.0, Kotlin 2.2.10, compile SDK 37, target SDK 36, minimum SDK 24, and Java 11 bytecode. Do not run an AGP 9 or Navigation 3 migration unless a separate task explicitly justifies it.
 
@@ -553,6 +557,7 @@ Use Room for:
 - attempt counts
 - completion timestamps
 - relevant session summaries
+- append-only local learning attempts and their local session summaries
 
 Use DataStore for:
 
@@ -571,11 +576,27 @@ Preserve existing Room/DataStore rows through explicit compatibility and tested 
 
 Use transactions for atomic puzzle-completion updates.
 
-The Room source of truth is `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/progress/`; the committed schema export is `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/`. The current database is version 1 and has no upgrade migration yet. Any entity/schema change must increment the database version, add an explicit Room migration, update the exported schema, and add migration/DAO instrumentation coverage. Never use destructive migration fallback to hide a missing migration.
+The Room sources of truth are `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/progress/` and `core-data/src/main/kotlin/com/qtpie/simplepuzzle/core/data/learning/`; the committed schema export is `core-data/schemas/com.qtpie.simplepuzzle.core.data.progress.JigsawMathDatabase/`. The current database is version 2. `MIGRATION_1_2` preserves schema-1 puzzle progress/session rows and creates empty learning tables; it never fabricates item history. Any later entity/schema change must increment the database version, add an explicit Room migration from every supported version, update the exported schema, and add migration/DAO instrumentation coverage. Never use destructive migration fallback to hide a missing migration.
 
-The DataStore source of truth is `DataStorePreferencesRepository`. Preference-key changes must preserve existing keys or implement a tested compatibility mapping. Room reset is transactional and intentionally does not reset user preferences.
+The DataStore source of truth is `DataStorePreferencesRepository`. Preference-key changes must preserve existing keys or implement a tested compatibility mapping. Room reset is transactional, deletes puzzle/session rows and all local learning evidence together, and intentionally does not reset user preferences. The Room database is excluded from Android cloud backup/device transfer for the local child-data pilot.
 
 `LegacyProgressMigrator` is a one-time boundary guarded by the DataStore migration flag. The current application wires `EmptyLegacyProgressSource` because the inspected prototype had no durable legacy store. Do not claim real legacy import support or replace the source without a tested reader. Exact revealed piece identities, resumable reducer state, unlock state, coins, background music mode, and the optional confetti setting are not all durably persisted today; treat them as known limitations, not as implemented behavior.
+
+## Local learning-evidence invariants
+
+- Owner-approved scope is `docs/academy/FOUNDATION_SCOPE.md`; do not broaden curriculum, activity, learner, classroom, cloud, social, or educational claims without a new owner decision.
+- Stable skill/activity/item identity and taxonomy/content/activity/evidence-policy versions must remain interpretable for historical attempts. Never silently reinterpret or rewrite an ID already stored.
+- `LearningAttempt` is an append-only raw fact. Inserts are idempotent by attempt ID; corrections use explicit supersession/invalidation records. Do not add a production update-in-place or per-attempt destructive correction path.
+- Existing aggregate puzzle progress is lower-detail legacy data. Preserve it, but never synthesize item attempts from it.
+- Current random Jigsaw distractors have no reviewed misconception meaning. Do not infer a misconception tag from an arbitrary wrong choice.
+- Response time may be stored when reliable but must not independently change `EvidenceStatus`.
+- One accepted answer records one attempt. Configuration/lifecycle replay and `RevealAnimationFinished` must not record another attempt. Learning persistence must not block score, Compose input, or renderer timing.
+- Reset must be ordered after every already-accepted attempt persistence job before the single Room reset transaction runs; otherwise a delayed attempt can repopulate evidence after deletion. Add a queue-ordering regression test when this orchestration changes.
+- `renderer-gdx` remains unaware of learning contracts and persistence. Learning evidence is created at the Jigsaw adapter/ViewModel boundary after reducer acceptance.
+- Personal summaries must retain an explicit insufficient-evidence state and supportive, non-permanent language. Never display diagnostic claims, child comparisons, or unexplained mastery percentages.
+- Phase 1 stores no learner name/account, email, date of birth, precise location, advertising ID, contacts, photos, audio/video, free-form child content, analytics payload, or network transmission.
+
+For taxonomy changes, follow `docs/academy/SKILL_TAXONOMY.md`. For policy changes, add a new version, deterministic tests, migration/interpretation documentation, and educator-validation status; never mutate version 1 semantics in place.
 
 ---
 
@@ -656,6 +677,10 @@ Tests must not rely on arbitrary sleeps.
 At minimum cover:
 
 - deterministic question generation
+- stable learning identifiers and deterministic item reproduction
+- taxonomy uniqueness, mapping versioning and prerequisite-cycle rejection
+- immutable append-only attempts, assistance/retries and explicit correction metadata
+- deterministic evidence, insufficient evidence, item diversity/near-duplicate handling and response-time exclusion
 - valid and unique answers
 - scoring
 - combos
@@ -666,12 +691,15 @@ At minimum cover:
 - pause and resume
 - difficulty policies
 - Room repository behavior
+- Room schema migration and preservation of existing puzzle progress
+- attempt duplicate prevention, transaction consistency and reset/delete behavior
 - legacy-data migration
 - DataStore preferences
 - manifest serialization
 - asset-generator determinism
 - invalid asset definitions
 - ViewModel event handling
+- exactly one attempt per accepted answer and none from renderer acknowledgement/recreation
 - renderer command ordering
 - duplicate-event prevention
 
@@ -717,7 +745,7 @@ Keep traces, benchmark outputs, screenshots, APKs, and local analysis scratchpad
 Use the smallest applicable verified command set:
 
 - documentation-only operational changes: `tools/android-doctor.ps1`, validate documented paths/links/commands, and run a focused host task when a command claim changes;
-- pure models/rules: `:core-model:test :core-game:test`;
+- pure models/rules: `:core-model:test :core-learning:test :core-game:test`;
 - ViewModel/Compose mapping: `:app:testDebugUnitTest :app:assembleDebug`;
 - Room/DataStore: `:core-data:testDebugUnitTest`; schema/DAO changes additionally require `:core-data:connectedDebugAndroidTest` on a connected device;
 - renderer command/timing/mesh work: `:renderer-gdx:testDebugUnitTest :app:assembleDebug` plus gameplay enter/exit, background/resume, and surface recreation on a device;
@@ -727,7 +755,7 @@ Use the smallest applicable verified command set:
 
 The full verified host suite is:
 
-`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-model:test :core-game:test :core-data:testDebugUnitTest :renderer-gdx:testDebugUnitTest :asset-pipeline:test :app:testDebugUnitTest`
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-model:test :core-learning:test :core-game:test :core-data:testDebugUnitTest :renderer-gdx:testDebugUnitTest :asset-pipeline:test :app:testDebugUnitTest`
 
 Other common commands:
 
@@ -738,6 +766,7 @@ Other common commands:
 Prefer focused tasks after discovering real module names:
 
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-game:test`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :core-learning:test`
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :renderer-gdx:testDebugUnitTest`
 - `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\gradle.ps1 :app:assembleDebug`
 
@@ -785,6 +814,13 @@ Maintain:
 - `docs/adr/0003-precomputed-puzzle-assets.md`
 - `docs/adr/0004-android-studio-embedded-jbr.md`
 - `docs/adr/0005-room-datastore-persistence-boundary.md`
+- `docs/adr/0006-pure-kotlin-learning-foundation.md`
+- `docs/adr/0007-append-only-local-learning-evidence.md`
+- `docs/academy/FOUNDATION_SCOPE.md`
+- `docs/academy/SKILL_TAXONOMY.md`
+- `docs/academy/LEARNING_EVIDENCE.md`
+- `docs/academy/LOCAL_DATA_INVENTORY.md`
+- `docs/academy/PHASE_1_STATUS.md`
 
 Documentation must never contain this user's fixed absolute SDK or JDK paths.
 

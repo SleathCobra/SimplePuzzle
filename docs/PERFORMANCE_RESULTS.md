@@ -16,7 +16,7 @@ These results do not represent real-device FPS, frame time, memory limits, therm
 - Supporting memory snapshots were about 144 MiB PSS before and 146 MiB after the five-cycle stress journey. This two-snapshot AVD variance is not proof of leak freedom, but it did not expose monotonic retention.
 - A debug `dumpsys gfxinfo` sample reported 1.18% modern jank and 50th/90th/95th/99th frame times of 23/26/27/30 ms. The legacy metric reported 96.81% jank, illustrating why this debug-emulator sample is not a production claim.
 - Reduced motion and LOW graphics persisted through force-stop/relaunch; defaults were restored afterward. Reset progress displayed an explicit destructive confirmation and Cancel preserved data.
-- Room instrumentation passed 2/2 tests; app instrumentation passed 1/1.
+- After Academy Phase 1, Room instrumentation passed 5/5 migration/DAO/reset tests and app instrumentation passed 6/6 learner-summary accessibility/large-text tests.
 
 ## Macrobenchmark diagnostic
 
@@ -33,6 +33,20 @@ After removing the full-screen background decode and eager audio loads, five col
 The same final run measured title-to-settings frame CPU at P50/P90/P95/P99 44.8/59.9/64.6/67.1 ms and title-to-gameplay at 47.1/63.9/81.9/107.6 ms. These AVD navigation values are diagnostic only.
 
 The profile generator produced 8,394 rules (199,286 bytes). The rules contain R8-obfuscated descriptors. Stable Baseline Profile Gradle plugin 1.4.1 cannot configure this AGP 9 application model, so there is no safe mapping/rewrite step and the raw profile was not committed.
+
+### Academy Phase 1 focused diagnostic
+
+The post-Phase-1 journey `firstIncorrectAnswerToLearningSummary` submits an incorrect deterministic addition choice, exits gameplay through the supported renderer teardown path, opens My Learning, and requires non-zero recent evidence. It passed all five iterations on the API 37 AVD using the same minified benchmark app.
+
+| Metric | Diagnostic AVD result |
+|---|---:|
+| rendered-frame count | min 68; median 70; max 77 |
+| frame CPU duration | P50 62.1 ms; P90 68.0 ms; P95 82.4 ms; P99 120.7 ms |
+| frame overrun | P50 64.7 ms; P90 82.5 ms; P95 90.7 ms; P99 139.9 ms |
+
+These values cover answer handling, gameplay teardown, two navigation transitions, and summary display; they do not isolate the Room insert. Perfetto inspection of the median-frame-count trace showed the answer DOWN/UP dispatches at 2.7/3.3 ms, while the worst UI frame was dominated by Compose measure/layout, RenderThread waiting, and severe emulator scheduling/graphics contention. The target main thread had no leading uninterruptible-I/O stall. This verifies completion of the journey, not acceptable device frame pacing or a before/after improvement.
+
+A direct correct-answer/reveal Macrobenchmark attempt was not accepted as a result: under emulator trace capture the input reached Compose and correct-answer audio/recomposition ran, but the harness did not observe renderer acknowledgement before its timeout. The same minified APK advanced the piece and question under a direct runtime tap, and renderer/ViewModel/device integration tests passed. A reliable reveal timing journey and physical-device trace remain required before drawing a performance conclusion.
 
 ## Perfetto startup analysis
 

@@ -3,6 +3,7 @@ package com.qtpie.simplepuzzle.core.game
 import com.qtpie.simplepuzzle.core.model.Difficulty
 import com.qtpie.simplepuzzle.core.model.MathOperation
 import com.qtpie.simplepuzzle.core.model.MathQuestion
+import com.qtpie.simplepuzzle.core.model.MathQuestionProvenance
 
 fun interface QuestionGenerator {
     fun generate(difficulty: Difficulty, random: RandomSource): MathQuestion
@@ -29,19 +30,27 @@ class DefaultMathQuestionGenerator(
     }
 
     override fun generate(difficulty: Difficulty, random: RandomSource): MathQuestion {
+        val seed = nextItemSeed(random)
+        return generateFromSeed(difficulty, seed)
+    }
+
+    fun generateFromSeed(difficulty: Difficulty, seed: Long): MathQuestion {
         val policy = DifficultyPolicies.forDifficulty(difficulty)
-        val first = random.nextInt(policy.operandRange.first, policy.operandRange.last + 1)
-        val second = random.nextInt(policy.operandRange.first, policy.operandRange.last + 1)
-        val operation = if (random.nextBoolean()) MathOperation.ADD else MathOperation.SUBTRACT
-        val left = if (operation == MathOperation.SUBTRACT) maxOf(first, second) else first
-        val right = if (operation == MathOperation.SUBTRACT) minOf(first, second) else second
+        val itemRandom = SeededRandomSource(seed)
+        val left = itemRandom.nextInt(policy.operandRange.first, policy.operandRange.last + 1)
+        val right = itemRandom.nextInt(policy.operandRange.first, policy.operandRange.last + 1)
+        // Academy Phase 1 deliberately limits the default pilot generator to
+        // owner-approved Grade 2 Quarter 1 addition. SUBTRACT remains in the
+        // engine model for existing authored/test questions but is not emitted
+        // as unreviewed learning evidence.
+        val operation = MathOperation.ADD
         val answer = operation.evaluate(left, right)
 
         val options = linkedSetOf(answer)
         var attempts = 0
         val maximumAttempts = optionCount * 20
         while (options.size < optionCount && attempts < maximumAttempts) {
-            val offset = random.nextInt(-policy.distractorSpread, policy.distractorSpread + 1)
+            val offset = itemRandom.nextInt(-policy.distractorSpread, policy.distractorSpread + 1)
             val candidate = answer + offset
             if (candidate >= 0 && candidate != answer) {
                 options += candidate
@@ -63,7 +72,30 @@ class DefaultMathQuestionGenerator(
             operation = operation,
             rightOperand = right,
             answer = answer,
-            options = random.shuffled(options.toList()),
+            options = itemRandom.shuffled(options.toList()),
+            provenance = MathQuestionProvenance(
+                generatorId = GENERATOR_ID,
+                generatorVersion = GENERATOR_VERSION,
+                contentVersion = CONTENT_VERSION,
+                seed = seed,
+                configuration = sortedMapOf(
+                    "difficulty" to difficulty.name,
+                    "optionCount" to optionCount.toString(),
+                    "operation" to operation.name,
+                ),
+            ),
         )
+    }
+
+    private fun nextItemSeed(random: RandomSource): Long {
+        val high = random.nextInt(0, 1 shl 30).toLong()
+        val low = random.nextInt(0, 1 shl 30).toLong()
+        return (high shl 30) or low
+    }
+
+    companion object {
+        const val GENERATOR_ID = "jm.jigsaw.addition"
+        const val GENERATOR_VERSION = 1
+        const val CONTENT_VERSION = 1
     }
 }

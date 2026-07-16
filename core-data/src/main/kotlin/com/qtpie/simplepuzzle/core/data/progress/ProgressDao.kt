@@ -31,6 +31,12 @@ abstract class ProgressDao {
     @Query("DELETE FROM puzzle_progress")
     protected abstract suspend fun deleteProgress()
 
+    @Query("DELETE FROM learning_attempts")
+    protected abstract suspend fun deleteLearningAttempts()
+
+    @Query("DELETE FROM learning_sessions")
+    protected abstract suspend fun deleteLearningSessions()
+
     @Transaction
     open suspend fun startAttempt(puzzleId: String, totalPieces: Int, now: Long) {
         val current = get(puzzleId)
@@ -100,6 +106,8 @@ abstract class ProgressDao {
 
     @Transaction
     open suspend fun resetAll() {
+        deleteLearningAttempts()
+        deleteLearningSessions()
         deleteSessions()
         deleteProgress()
     }
