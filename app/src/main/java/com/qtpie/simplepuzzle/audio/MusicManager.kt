@@ -7,7 +7,10 @@ import com.qtpie.simplepuzzle.model.BackgroundMusicMode
 import com.qtpie.simplepuzzle.model.UserSettings
 import kotlinx.coroutines.*
 
-class MusicManager(private val context: Context) {
+class MusicManager(context: Context) {
+    private val context = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var fadeJob: Job? = null
     private var mediaPlayer: MediaPlayer? = null
     private var currentSettings: UserSettings? = null
     private var currentMusicRes: Int = 0
@@ -70,14 +73,19 @@ class MusicManager(private val context: Context) {
         val fadeOutDuration = 1000L
         val fadeInDuration = 1500L
         
-        CoroutineScope(Dispatchers.Main).launch {
+        fadeJob?.cancel()
+        fadeJob = scope.launch {
             // Fade out current
             mediaPlayer?.let { player ->
                 val startVol = currentSettings?.backgroundMusicVolume ?: 0.5f
                 val steps = 20
                 for (i in steps downTo 0) {
                     val vol = startVol * (i.toFloat() / steps)
-                    try { player.setVolume(vol, vol) } catch (e: Exception) {}
+                    try {
+                        player.setVolume(vol, vol)
+                    } catch (_: IllegalStateException) {
+                        return@let
+                    }
                     delay(fadeOutDuration / steps)
                 }
             }
@@ -85,8 +93,15 @@ class MusicManager(private val context: Context) {
             stopMusic()
             currentMusicRes = resId
             playCount = 0
-            
-            mediaPlayer = MediaPlayer.create(context, resId).apply {
+
+            val preparedPlayer = withContext(Dispatchers.IO) {
+                MediaPlayer.create(context, resId)
+            }
+            if (!isActive) {
+                preparedPlayer?.release()
+                return@launch
+            }
+            mediaPlayer = preparedPlayer?.apply {
                 val targetVol = currentSettings?.backgroundMusicVolume ?: 0.5f
                 setVolume(0f, 0f)
                 isLooping = false
@@ -110,7 +125,11 @@ class MusicManager(private val context: Context) {
                 val steps = 30
                 for (i in 0..steps) {
                     val vol = targetVol * (i.toFloat() / steps)
-                    try { setVolume(vol, vol) } catch (e: Exception) {}
+                    try {
+                        setVolume(vol, vol)
+                    } catch (_: IllegalStateException) {
+                        break
+                    }
                     delay(fadeInDuration / steps)
                 }
             }
@@ -125,6 +144,8 @@ class MusicManager(private val context: Context) {
     }
 
     fun release() {
+        fadeJob?.cancel()
+        scope.cancel()
         stopMusic()
     }
 }

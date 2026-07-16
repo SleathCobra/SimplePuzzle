@@ -1,0 +1,11 @@
+{
+  "id": "cosmic-journey",
+  "title": "Cosmic Journey",
+  "category": "Space",
+  "sourceImage": "../../app/src/main/res/drawable/puzzle.png",
+  "rows": 5,
+  "columns": 6,
+  "activeTextureMaxSize": 768,
+  "thumbnailSize": 320,
+  "edgeSeed": 4821
+}

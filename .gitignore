@@ -1,22 +1,65 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Gradle and Kotlin build state
+.gradle/
+.kotlin/
+**/build/
+**/out/
+
+# Keep the Gradle Wrapper executable artifact under version control.
+!gradle/wrapper/gradle-wrapper.jar
+
+# Machine-local Android configuration
 local.properties
-.idea/planningMode.xml
-.idea/deviceManager.xml
-app/release/output-metadata.json
-app/release/katy.apk
-app/release/baselineProfiles/1/app-release.dm
-app/release/baselineProfiles/0/app-release.dm
-app/release/app-release.apk
+keystore.properties
+signing.properties
+
+# Android and native build intermediates
+.externalNativeBuild/
+.cxx/
+.navigation/
+captures/
+
+# Android Studio, IntelliJ, Fleet, and VS Code user state
+.idea/
+*.iml
+.fleet/
+.vscode/
+
+# Packaged application outputs and generated release metadata
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.dm
+*.prof
+*.profm
+output-metadata.json
+/app/release/
+
+# Local benchmark, profiling, and diagnostic artifacts
+*.hprof
+*.trace
+*.perfetto-trace
+*.log
+hs_err_pid*
+replay_pid*
+/trace_processor
+/trace_processor.exe
+
+# Signing material and credentials
+*.jks
+*.keystore
+*.p12
+*.pem
+
+# Operating-system and editor temporary files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Source sets, tests, Room schemas, puzzle definitions, and generated runtime
+# assets under src/ remain intentionally trackable. Do not add broad image,
+# JSON, audio, or src/ exclusions: those files are application inputs.

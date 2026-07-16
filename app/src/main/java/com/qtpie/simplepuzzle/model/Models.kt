@@ -1,5 +1,6 @@
 package com.qtpie.simplepuzzle.model
 
+import com.qtpie.simplepuzzle.core.model.GraphicsQuality
 import kotlin.random.Random
 
 data class MathQuestion(
@@ -22,7 +23,9 @@ data class UserSettings(
     val backgroundMusicMode: BackgroundMusicMode = BackgroundMusicMode.Random,
     val hapticFeedbackEnabled: Boolean = true,
     val showSpecialConfetti: Boolean = true,
-    val difficulty: Difficulty = Difficulty.Medium
+    val difficulty: Difficulty = Difficulty.Medium,
+    val graphicsQuality: GraphicsQuality = GraphicsQuality.AUTO,
+    val reducedMotion: Boolean = false,
 )
 
 data class PuzzleInfo(

@@ -20,16 +20,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qtpie.simplepuzzle.R
-import com.qtpie.simplepuzzle.ui.components.JigsawBoard
-import com.qtpie.simplepuzzle.viewmodel.SoundEffect
-import kotlinx.coroutines.delay
-import kotlin.random.Random
 
 @Composable
 fun StartScreen(
     onPlayClick: () -> Unit, 
     onSettingsClick: () -> Unit,
-    onSound: (SoundEffect) -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "heartbeat")
     val scale by infiniteTransition.animateFloat(
@@ -41,37 +36,6 @@ fun StartScreen(
         ),
         label = "scale"
     )
-
-    // Animated puzzle preview
-    val previewImageRes = remember { R.drawable.puzzle }
-    var unlockedPieces by remember { mutableStateOf((0 until 16).filter { Random.nextBoolean() }.toSet()) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(1500)
-            val total = 16
-            
-            // Re-enabled multiple piece modification logic, but applied one-by-one
-            val countToChange = Random.nextInt(2, 5)
-            val shouldRemove = unlockedPieces.size > 10 || (unlockedPieces.size > 4 && Random.nextBoolean())
-
-            repeat(countToChange) {
-                val current = unlockedPieces.toMutableSet()
-                if (shouldRemove) {
-                    if (current.isNotEmpty()) {
-                        current.remove(current.random())
-                    }
-                } else {
-                    val remaining = (0 until total).toSet() - current
-                    if (remaining.isNotEmpty()) {
-                        current.add(remaining.random())
-                    }
-                }
-                unlockedPieces = current
-                delay(200) // Small delay between pieces for sound clarity
-            }
-        }
-    }
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -112,20 +76,12 @@ fun StartScreen(
                     .background(Color.Black.copy(alpha = 0.2f))
                     .padding(8.dp)
             ) {
-                JigsawBoard(
-                    rows = 4,
-                    cols = 4,
-                    visiblePieces = unlockedPieces,
-                    onSound = onSound,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Image(
-                        painter = painterResource(id = previewImageRes),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.cosmic_journey_thumbnail),
+                    contentDescription = "Cosmic Journey puzzle preview",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

@@ -24,3 +24,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "SimplePuzzle"
 include(":app")
+include(":core-model")
+include(":core-game")
+include(":core-data")
+include(":asset-pipeline")
+include(":renderer-gdx")
+include(":benchmark")

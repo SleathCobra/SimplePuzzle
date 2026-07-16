@@ -6,9 +6,42 @@ import android.media.SoundPool
 import com.qtpie.simplepuzzle.R
 import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 
-class SoundManager(private val context: Context) {
+class SoundManager(context: Context) {
+    private val context = context.applicationContext
     private val soundPool: SoundPool
-    private val soundMap = mutableMapOf<SoundEffect, List<Int>>()
+    private val lock = Any()
+    private val loadedSoundIds = mutableMapOf<SoundEffect, MutableList<Int>>()
+    private val effectBySampleId = mutableMapOf<Int, SoundEffect>()
+    private val requestedEffects = mutableSetOf<SoundEffect>()
+    private val pendingVolume = mutableMapOf<SoundEffect, Float>()
+    private var released = false
+
+    private val resourcesByEffect = mapOf(
+        SoundEffect.MENU_CLICK to intArrayOf(R.raw.menuclick1, R.raw.menuclick2),
+        SoundEffect.PUZZLE_LOCKED to intArrayOf(R.raw.locked_puzzle),
+        SoundEffect.PUZZLE_UNLOCKED to intArrayOf(R.raw.unlock_puzzle),
+        SoundEffect.ANSWER_CORRECT to intArrayOf(R.raw.right_answer),
+        SoundEffect.ANSWER_WRONG to intArrayOf(R.raw.wrong_answer1, R.raw.wrong_answer2),
+        SoundEffect.PIECE_PLACED to intArrayOf(
+            R.raw.puzzle_piece_added1,
+            R.raw.puzzle_piece_added2,
+            R.raw.puzzle_piece_added3,
+            R.raw.puzzle_piece_added4,
+            R.raw.puzzle_piece_added5,
+        ),
+        SoundEffect.PIECE_REMOVED to intArrayOf(
+            R.raw.puzzle_piece_removed1,
+            R.raw.puzzle_piece_removed2,
+            R.raw.puzzle_piece_removed3,
+        ),
+        SoundEffect.COINS_ADDED to intArrayOf(R.raw.money_added),
+        SoundEffect.GAME_COMPLETE to intArrayOf(R.raw.money_added),
+        SoundEffect.NAVIGATION to intArrayOf(R.raw.navigationchange),
+        SoundEffect.SWITCH_ON to intArrayOf(R.raw.switch_on),
+        SoundEffect.SWITCH_OFF to intArrayOf(R.raw.switch_off),
+        SoundEffect.SWITCH_TOGGLE to intArrayOf(R.raw.switch_toggle),
+        SoundEffect.MANY_FAILS to intArrayOf(R.raw.many_fails),
+    )
 
     init {
         val audioAttributes = AudioAttributes.Builder()
@@ -20,77 +53,70 @@ class SoundManager(private val context: Context) {
             .setMaxStreams(5)
             .setAudioAttributes(audioAttributes)
             .build()
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            val playback = synchronized(lock) {
+                if (released) return@setOnLoadCompleteListener
+                val effect = effectBySampleId.remove(sampleId)
+                    ?: return@setOnLoadCompleteListener
+                if (status != 0) return@setOnLoadCompleteListener
 
-        loadSounds()
-    }
-
-    private fun loadSounds() {
-        soundMap[SoundEffect.MENU_CLICK] = listOf(
-            soundPool.load(context, R.raw.menuclick1, 1),
-            soundPool.load(context, R.raw.menuclick2, 1)
-        )
-        soundMap[SoundEffect.PUZZLE_LOCKED] = listOf(
-            soundPool.load(context, R.raw.locked_puzzle, 1)
-        )
-        soundMap[SoundEffect.PUZZLE_UNLOCKED] = listOf(
-            soundPool.load(context, R.raw.unlock_puzzle, 1)
-        )
-        soundMap[SoundEffect.ANSWER_CORRECT] = listOf(
-            soundPool.load(context, R.raw.right_answer, 1)
-        )
-        soundMap[SoundEffect.ANSWER_WRONG] = listOf(
-            soundPool.load(context, R.raw.wrong_answer1, 1),
-            soundPool.load(context, R.raw.wrong_answer2, 1)
-        )
-        soundMap[SoundEffect.PIECE_PLACED] = listOf(
-            soundPool.load(context, R.raw.puzzle_piece_added1, 1),
-            soundPool.load(context, R.raw.puzzle_piece_added2, 1),
-            soundPool.load(context, R.raw.puzzle_piece_added3, 1),
-            soundPool.load(context, R.raw.puzzle_piece_added4, 1),
-            soundPool.load(context, R.raw.puzzle_piece_added5, 1)
-        )
-        soundMap[SoundEffect.PIECE_REMOVED] = listOf(
-            soundPool.load(context, R.raw.puzzle_piece_removed1, 1),
-            soundPool.load(context, R.raw.puzzle_piece_removed2, 1),
-            soundPool.load(context, R.raw.puzzle_piece_removed3, 1)
-        )
-        soundMap[SoundEffect.COINS_ADDED] = listOf(
-            soundPool.load(context, R.raw.money_added, 1)
-        )
-        soundMap[SoundEffect.GAME_COMPLETE] = listOf(
-            soundPool.load(context, R.raw.money_added, 1) // Using money_added as a placeholder if no specific victory sound
-        )
-        soundMap[SoundEffect.NAVIGATION] = listOf(
-            soundPool.load(context, R.raw.navigationchange, 1)
-        )
-        soundMap[SoundEffect.SWITCH_ON] = listOf(
-            soundPool.load(context, R.raw.switch_on, 1)
-        )
-        soundMap[SoundEffect.SWITCH_OFF] = listOf(
-            soundPool.load(context, R.raw.switch_off, 1)
-        )
-        soundMap[SoundEffect.SWITCH_TOGGLE] = listOf(
-            soundPool.load(context, R.raw.switch_toggle, 1)
-        )
-        soundMap[SoundEffect.MANY_FAILS] = listOf(
-            soundPool.load(context, R.raw.many_fails, 1)
-        )
+                loadedSoundIds.getOrPut(effect, ::mutableListOf).add(sampleId)
+                pendingVolume.remove(effect)?.let { volume -> sampleId to volume }
+            }
+            playback?.let { (soundId, volume) -> playLoaded(soundId, volume) }
+        }
     }
 
     fun playSound(effect: SoundEffect, settingsVolume: Float = 1.0f) {
-        val sounds = soundMap[effect]
-        if (!sounds.isNullOrEmpty()) {
-            val soundId = sounds.random()
-            val baseVolume = when (effect) {
-                SoundEffect.PIECE_PLACED, SoundEffect.PIECE_REMOVED -> 0.2f
-                else -> 1.0f
-            }
-            val volume = baseVolume * settingsVolume
+        val baseVolume = when (effect) {
+            SoundEffect.PIECE_PLACED, SoundEffect.PIECE_REMOVED -> 0.2f
+            else -> 1.0f
+        }
+        val volume = (baseVolume * settingsVolume).coerceIn(0f, 1f)
+        if (volume == 0f) return
+
+        val loadedSound = synchronized(lock) {
+            if (released) return
+
+            loadedSoundIds[effect]?.takeIf { it.isNotEmpty() }?.random()
+                ?: run {
+                    pendingVolume[effect] = volume
+                    if (requestedEffects.add(effect)) {
+                        var requestedSampleCount = 0
+                        (resourcesByEffect[effect] ?: intArrayOf()).forEach { resourceId ->
+                            val sampleId = soundPool.load(context, resourceId, 1)
+                            if (sampleId != 0) {
+                                effectBySampleId[sampleId] = effect
+                                requestedSampleCount++
+                            }
+                        }
+                        if (requestedSampleCount == 0) {
+                            requestedEffects.remove(effect)
+                            pendingVolume.remove(effect)
+                        }
+                    }
+                    null
+                }
+        }
+        loadedSound?.let { playLoaded(it, volume) }
+    }
+
+    private fun playLoaded(soundId: Int, volume: Float) {
+        synchronized(lock) {
+            if (released) return
             soundPool.play(soundId, volume, volume, 0, 0, 1f)
         }
     }
 
     fun release() {
-        soundPool.release()
+        synchronized(lock) {
+            if (released) return
+            released = true
+            pendingVolume.clear()
+            effectBySampleId.clear()
+            loadedSoundIds.clear()
+            requestedEffects.clear()
+            soundPool.release()
+        }
     }
 }

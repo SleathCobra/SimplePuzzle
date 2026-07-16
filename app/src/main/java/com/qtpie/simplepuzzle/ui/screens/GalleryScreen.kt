@@ -39,7 +39,7 @@ fun GalleryScreen(
     onBack: () -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf("All") }
-    val categories = listOf("All", "Space", "Fantasy", "Nature")
+    val categories = remember { listOf("All", "Space", "Fantasy", "Nature") }
 
     Scaffold(
         topBar = {
@@ -80,7 +80,7 @@ fun GalleryScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = { completedCount.toFloat() / totalCount },
+                progress = { if (totalCount > 0) completedCount.toFloat() / totalCount else 0f },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(12.dp)
@@ -132,15 +132,21 @@ fun GalleryScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val filteredPuzzles = if (selectedCategory == "All") puzzles else puzzles.filter { it.category == selectedCategory }
+            val filteredPuzzles = remember(puzzles, selectedCategory) {
+                if (selectedCategory == "All") puzzles else puzzles.filter { it.category == selectedCategory }
+            }
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Adaptive(minSize = 168.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(filteredPuzzles) { puzzle ->
+                items(
+                    items = filteredPuzzles,
+                    key = PuzzleInfo::id,
+                    contentType = { "puzzle-card" },
+                ) { puzzle ->
                     PuzzleCard(
                         puzzle = puzzle, 
                         canAfford = totalCoins >= puzzle.unlockCost,
@@ -152,7 +158,7 @@ fun GalleryScreen(
                 }
                 
                 // Add a "Coming Soon" item if needed
-                item {
+                item(key = "coming-soon", contentType = "coming-soon-card") {
                     ComingSoonCard()
                 }
             }
@@ -227,7 +233,12 @@ fun PuzzleCard(puzzle: PuzzleInfo, canAfford: Boolean, onClick: () -> Unit) {
                         .background(Color.Black.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Lock, contentDescription = "Locked", tint = Color.White, modifier = Modifier.size(40.dp))
+                    Icon(
+                        Icons.Default.Lock,
+                        contentDescription = "${puzzle.name} is locked",
+                        tint = Color.White,
+                        modifier = Modifier.size(40.dp),
+                    )
                 }
             }
 
@@ -277,7 +288,7 @@ fun ComingSoonCard() {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Lock, contentDescription = null, tint = Color.White.copy(alpha = 0.3f))
+            Icon(Icons.Default.Lock, contentDescription = "Coming soon", tint = Color.White.copy(alpha = 0.3f))
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text("Coming Soon", color = Color.White.copy(alpha = 0.5f), fontSize = 16.sp)

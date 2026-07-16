@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.qtpie.simplepuzzle.model.BackgroundMusicMode
 import com.qtpie.simplepuzzle.model.Difficulty
 import com.qtpie.simplepuzzle.model.UserSettings
+import com.qtpie.simplepuzzle.core.model.GraphicsQuality
 import com.qtpie.simplepuzzle.viewmodel.UserProfileState
 import kotlin.math.roundToInt
 
@@ -34,6 +36,31 @@ fun SettingsScreen(
     onResetProgress: () -> Unit,
     onBack: () -> Unit
 ) {
+    var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
+
+    if (showResetConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirmation = false },
+            title = { Text("Reset all progress?") },
+            text = { Text("Scores, puzzle progress, and session history will be permanently deleted.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showResetConfirmation = false
+                        onResetProgress()
+                    },
+                ) {
+                    Text("Reset", color = Color(0xFFFF4B5C))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirmation = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -119,6 +146,10 @@ fun SettingsScreen(
                     onSettingsChange(settings.copy(showSpecialConfetti = it))
                 }
                 Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                SettingsToggle("Reduced Motion", settings.reducedMotion) {
+                    onSettingsChange(settings.copy(reducedMotion = it))
+                }
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -127,6 +158,14 @@ fun SettingsScreen(
                     Text("Difficulty", fontWeight = FontWeight.Medium)
                     DifficultySegmentedButton(settings.difficulty) {
                         onSettingsChange(settings.copy(difficulty = it))
+                    }
+                }
+                Divider(color = Color.LightGray.copy(alpha = 0.5f))
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Graphics Quality", fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    GraphicsQualitySelector(settings.graphicsQuality) {
+                        onSettingsChange(settings.copy(graphicsQuality = it))
                     }
                 }
             }
@@ -142,7 +181,7 @@ fun SettingsScreen(
                         Text("WARNING: This cannot be undone", fontSize = 12.sp, color = Color.Gray)
                     }
                     IconButton(
-                        onClick = onResetProgress,
+                        onClick = { showResetConfirmation = true },
                         modifier = Modifier.background(Color(0xFFFF4B5C).copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                     ) {
                         Icon(Icons.Default.Error, contentDescription = "Reset", tint = Color(0xFFFF4B5C))
@@ -262,6 +301,39 @@ fun DifficultySegmentedButton(current: Difficulty, onSelect: (Difficulty) -> Uni
                     color = if (isSelected) Color.White else Color.Gray,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun GraphicsQualitySelector(
+    current: GraphicsQuality,
+    onSelect: (GraphicsQuality) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF1F5F9), RoundedCornerShape(20.dp))
+            .padding(4.dp),
+    ) {
+        GraphicsQuality.entries.forEach { quality ->
+            val selected = current == quality
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (selected) Color(0xFF5A4FCF) else Color.Transparent)
+                    .clickable { onSelect(quality) }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = quality.name.lowercase().replaceFirstChar(Char::uppercase),
+                    color = if (selected) Color.White else Color.Gray,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }

@@ -1,9 +1,26 @@
 package com.qtpie.simplepuzzle.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.qtpie.simplepuzzle.R
+import com.qtpie.simplepuzzle.core.data.preferences.PreferencesRepository
+import com.qtpie.simplepuzzle.core.data.progress.ProgressRepository
+import com.qtpie.simplepuzzle.core.game.DefaultGameEngine
+import com.qtpie.simplepuzzle.core.game.GameEngine
+import com.qtpie.simplepuzzle.core.game.SeededRandomSource
+import com.qtpie.simplepuzzle.core.model.GameAction
+import com.qtpie.simplepuzzle.core.model.GameConfiguration
+import com.qtpie.simplepuzzle.core.model.GameEvent
+import com.qtpie.simplepuzzle.core.model.GamePhase
+import com.qtpie.simplepuzzle.core.model.GameState
+import com.qtpie.simplepuzzle.core.model.GameSessionSummary
+import com.qtpie.simplepuzzle.core.model.PlayerPreferences
+import com.qtpie.simplepuzzle.core.model.PuzzleId
+import com.qtpie.simplepuzzle.core.model.Score
 import com.qtpie.simplepuzzle.model.*
+import com.qtpie.simplepuzzle.core.model.Difficulty as EngineDifficulty
+import com.qtpie.simplepuzzle.core.model.MathQuestion as EngineMathQuestion
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,6 +31,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 enum class SoundEffect {
     MENU_CLICK,
@@ -35,6 +54,7 @@ enum class SoundEffect {
 data class GameUiState(
     val currentQuestion: MathQuestion = generateMathQuestion(),
     val unlockedPieces: Set<Int> = emptySet(),
+    val revealingPiece: Int? = null,
     val score: Int = 0,
     val combo: Int = 1,
     val shakeTrigger: Int = 0,
@@ -53,7 +73,15 @@ data class UserProfileState(
     val totalCoins: Int = 150
 )
 
-class GameViewModel : ViewModel() {
+private const val DEFAULT_GAME_SEED = 0x4A49475341574D41L
+
+class GameViewModel(
+    private val gameEngine: GameEngine = DefaultGameEngine(
+        random = SeededRandomSource(DEFAULT_GAME_SEED),
+    ),
+    private val preferencesRepository: PreferencesRepository? = null,
+    private val progressRepository: ProgressRepository? = null,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(GameUiState())
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
@@ -67,17 +95,50 @@ class GameViewModel : ViewModel() {
     val soundEvent: SharedFlow<SoundEffect> = _soundEvent.asSharedFlow()
 
     private var wrongAnswersInARow = 0
+    private var engineState: GameState? = null
+    private var persistenceJob: Job? = null
+    private var correctAnswers = 0
+    private var incorrectAnswers = 0
 
     private val _puzzles = MutableStateFlow(listOf(
-        PuzzleInfo(1, "Cosmic Journey", R.drawable.puzzle, 30, false, false, "Space", unlockCost = 0),
-        PuzzleInfo(2, "Aqua Dreams", R.drawable.puzzle, 30, false, false, "Nature", unlockCost = 0),
-        PuzzleInfo(3, "Fantasy Castle", R.drawable.puzzle, 16, false, true, "Fantasy", unlockCost = 0),
-        PuzzleInfo(4, "Hidden City", R.drawable.puzzle, 30, true, false, "Fantasy", unlockCost = 100),
-        PuzzleInfo(5, "Forest Path", R.drawable.puzzle, 16, true, false, "Nature", unlockCost = 150)
+        PuzzleInfo(1, "Cosmic Journey", R.drawable.cosmic_journey_thumbnail, 30, false, false, "Space", unlockCost = 0),
+        PuzzleInfo(2, "Aqua Dreams", R.drawable.cosmic_journey_thumbnail, 30, false, false, "Nature", unlockCost = 0),
+        PuzzleInfo(3, "Fantasy Castle", R.drawable.cosmic_journey_thumbnail, 16, false, true, "Fantasy", unlockCost = 0),
+        PuzzleInfo(4, "Hidden City", R.drawable.cosmic_journey_thumbnail, 30, true, false, "Fantasy", unlockCost = 100),
+        PuzzleInfo(5, "Forest Path", R.drawable.cosmic_journey_thumbnail, 16, true, false, "Nature", unlockCost = 150)
     ))
     val puzzles: StateFlow<List<PuzzleInfo>> = _puzzles.asStateFlow()
 
     private var timerJob: Job? = null
+
+    init {
+        preferencesRepository?.preferences
+            ?.onEach { persisted ->
+                _settings.update { current -> persisted.toUiSettings(current) }
+            }
+            ?.launchIn(viewModelScope)
+
+        progressRepository?.progress
+            ?.onEach { persisted ->
+                val byId = persisted.associateBy { it.puzzleId.value.removePrefix("puzzle-").toIntOrNull() }
+                _puzzles.update { puzzles ->
+                    puzzles.map { puzzle ->
+                        val progress = byId[puzzle.id] ?: return@map puzzle
+                        puzzle.copy(
+                            isCompleted = progress.completed,
+                            maxScore = progress.bestScore.value,
+                        )
+                    }
+                }
+                _userProfile.update { profile ->
+                    profile.copy(
+                        puzzlesCompleted = persisted.count { it.completed },
+                        totalScore = persisted.sumOf { it.bestScore.value },
+                    )
+                }
+            }
+            ?.launchIn(viewModelScope)
+    }
 
     private fun playSound(effect: SoundEffect) {
         if (_settings.value.soundEffectsEnabled) {
@@ -94,17 +155,34 @@ class GameViewModel : ViewModel() {
         }
         playSound(SoundEffect.MENU_CLICK)
         timerJob?.cancel()
+        val startedState = gameEngine.reduce(
+            state = gameEngine.newGame(
+                GameConfiguration(
+                    puzzleId = PuzzleId("puzzle-${puzzle.id}"),
+                    pieceCount = puzzle.totalPieces,
+                    difficulty = _settings.value.difficulty.toEngineDifficulty(),
+                ),
+            ),
+            action = GameAction.Start,
+        ).state
+        engineState = startedState
+        correctAnswers = 0
+        incorrectAnswers = 0
         _uiState.update { it.copy(
             currentPuzzle = puzzle,
-            unlockedPieces = emptySet(),
-            score = 0,
-            combo = 1,
+            unlockedPieces = startedState.revealedPieces.asIndices(),
+            revealingPiece = null,
+            score = startedState.score.value,
+            combo = startedState.combo,
             isGameOver = false,
-            currentQuestion = generateMathQuestion(_settings.value.difficulty),
+            currentQuestion = startedState.question.toUiQuestion(),
             coins = 0,
             timeElapsed = 0,
             bestTime = puzzle.bestTime
         ) }
+        enqueuePersistence {
+            progressRepository?.startAttempt(startedState.puzzleId, startedState.pieceCount)
+        }
         startTimer()
     }
 
@@ -125,6 +203,7 @@ class GameViewModel : ViewModel() {
     }
 
     private fun startTimer() {
+        timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (true) {
                 delay(1000)
@@ -134,47 +213,110 @@ class GameViewModel : ViewModel() {
     }
 
     fun onAnswerSelected(option: Int) {
-        val currentState = _uiState.value
-        if (option == currentState.currentQuestion.answer) {
+        val currentEngineState = engineState ?: return
+        val comboBeforeAnswer = currentEngineState.combo
+        val answerTransition = gameEngine.reduce(
+            currentEngineState,
+            GameAction.SelectAnswer(option),
+        )
+        if (answerTransition.state == currentEngineState && answerTransition.events.isEmpty()) {
+            return
+        }
+
+        var finalState = answerTransition.state
+        val events = answerTransition.events.toMutableList()
+        var coinReward = 0
+        var shouldShake = false
+
+        if (events.any { it is GameEvent.CorrectAnswer }) {
+            correctAnswers++
             wrongAnswersInARow = 0
             playSound(SoundEffect.ANSWER_CORRECT)
-            val newScore = currentState.score + (10 * currentState.combo)
-            val newCombo = currentState.combo + 1
-            val coinReward = 5 * currentState.combo
-            unlockRandomPiece()
-            _uiState.update { it.copy(
-                score = newScore,
-                combo = newCombo,
-                coins = it.coins + coinReward,
-                currentQuestion = generateMathQuestion(_settings.value.difficulty)
-            ) }
+            coinReward = 5 * comboBeforeAnswer
             playSound(SoundEffect.COINS_ADDED)
-        } else {
+
+        } else if (events.any { it is GameEvent.IncorrectAnswer }) {
+            incorrectAnswers++
             wrongAnswersInARow++
             if (wrongAnswersInARow == 3) {
                 playSound(SoundEffect.MANY_FAILS)
             } else {
                 playSound(SoundEffect.ANSWER_WRONG)
             }
-            _uiState.update { it.copy(
-                combo = 1,
-                shakeTrigger = it.shakeTrigger + 1
-            ) }
+            shouldShake = true
+        }
+
+        engineState = finalState
+        _uiState.update { current ->
+            current.copy(
+                currentQuestion = finalState.question.toUiQuestion(),
+                unlockedPieces = finalState.revealedPieces.asIndices(),
+                revealingPiece = finalState.pendingPiece?.value,
+                score = finalState.score.value,
+                combo = finalState.combo,
+                isGameOver = finalState.phase == GamePhase.COMPLETED,
+                coins = current.coins + coinReward,
+                shakeTrigger = if (shouldShake) current.shakeTrigger + 1 else current.shakeTrigger,
+            )
+        }
+
+    }
+
+    fun onRevealAnimationFinished(pieceIndex: Int) {
+        val currentEngineState = engineState ?: return
+        if (currentEngineState.phase != GamePhase.REVEALING_PIECE ||
+            currentEngineState.pendingPiece?.value != pieceIndex
+        ) {
+            return
+        }
+        val transition = gameEngine.reduce(currentEngineState, GameAction.RevealAnimationFinished)
+        if (transition.state == currentEngineState) return
+
+        val finalState = transition.state
+        engineState = finalState
+        playSound(SoundEffect.PIECE_PLACED)
+        _uiState.update { current ->
+            current.copy(
+                currentQuestion = finalState.question.toUiQuestion(),
+                unlockedPieces = finalState.revealedPieces.asIndices(),
+                revealingPiece = null,
+                isGameOver = finalState.phase == GamePhase.COMPLETED,
+            )
+        }
+
+        if (transition.events.any { it is GameEvent.PieceRevealed }) {
+            enqueuePersistence {
+                progressRepository?.saveProgress(
+                    puzzleId = finalState.puzzleId,
+                    revealedPieces = finalState.revealedPieces.size,
+                    totalPieces = finalState.pieceCount,
+                    score = finalState.score,
+                )
+            }
+        }
+        if (transition.events.any { it == GameEvent.PuzzleCompleted }) {
+            completePuzzle()
         }
     }
 
-    private fun unlockRandomPiece() {
-        val currentState = _uiState.value
-        val totalPieces = currentState.currentPuzzle?.totalPieces ?: 16
-        val remaining = (0 until totalPieces).toSet() - currentState.unlockedPieces
-        if (remaining.isNotEmpty()) {
-            val randomPiece = remaining.random()
-            val nextUnlocked = currentState.unlockedPieces + randomPiece
-            _uiState.update { it.copy(unlockedPieces = nextUnlocked) }
-            
-            if (nextUnlocked.size == totalPieces) {
-                completePuzzle()
-            }
+    fun pauseGame() {
+        val currentState = engineState ?: return
+        val transition = gameEngine.reduce(currentState, GameAction.Pause)
+        if (transition.state == currentState) return
+
+        engineState = transition.state
+        timerJob?.cancel()
+        timerJob = null
+    }
+
+    fun resumeGame() {
+        val currentState = engineState ?: return
+        val transition = gameEngine.reduce(currentState, GameAction.Resume)
+        if (transition.state == currentState) return
+
+        engineState = transition.state
+        if (transition.state.phase != GamePhase.COMPLETED) {
+            startTimer()
         }
     }
 
@@ -184,14 +326,12 @@ class GameViewModel : ViewModel() {
         val finalTime = _uiState.value.timeElapsed
         val finalScore = _uiState.value.score
         val currentPuzzle = _uiState.value.currentPuzzle
-        
-        _uiState.update { it.copy(isGameOver = true) }
-        
-        _userProfile.update { 
+
+        _userProfile.update {
             it.copy(
-                puzzlesCompleted = it.puzzlesCompleted + 1,
+                puzzlesCompleted = it.puzzlesCompleted + if (currentPuzzle?.isCompleted == true) 0 else 1,
                 totalCoins = it.totalCoins + _uiState.value.coins
-            ) 
+            )
         }
 
         if (currentPuzzle != null) {
@@ -206,6 +346,21 @@ class GameViewModel : ViewModel() {
                 }
             }
             _uiState.update { it.copy(bestTime = newBestTime) }
+        }
+
+        val completedEngineState = engineState ?: return
+        enqueuePersistence {
+            progressRepository?.completePuzzle(
+                GameSessionSummary(
+                    puzzleId = completedEngineState.puzzleId,
+                    score = completedEngineState.score,
+                    correctAnswers = correctAnswers,
+                    incorrectAnswers = incorrectAnswers,
+                    durationMillis = finalTime * 1_000L,
+                    completed = true,
+                    endedAtEpochMillis = System.currentTimeMillis(),
+                ),
+            )
         }
     }
 
@@ -226,10 +381,87 @@ class GameViewModel : ViewModel() {
             if (newValue) playSound(SoundEffect.SWITCH_ON) else playSound(SoundEffect.SWITCH_OFF)
         }
         _settings.value = newSettings
+        preferencesRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.setPreferences(newSettings.toPlayerPreferences())
+            }
+        }
     }
 
     fun resetProgress() {
-        _userProfile.update { UserProfileState() }
-        _uiState.update { GameUiState() }
+        timerJob?.cancel()
+        engineState = null
+        val clearUi = {
+            _userProfile.update { UserProfileState() }
+            _uiState.update { GameUiState() }
+        }
+        if (progressRepository == null) {
+            clearUi()
+        } else {
+            enqueuePersistence {
+                progressRepository.resetAll()
+                clearUi()
+            }
+        }
+    }
+
+    private fun enqueuePersistence(block: suspend () -> Unit) {
+        val previous = persistenceJob
+        persistenceJob = viewModelScope.launch {
+            previous?.join()
+            block()
+        }
+    }
+
+    class Factory(
+        private val preferencesRepository: PreferencesRepository,
+        private val progressRepository: ProgressRepository,
+    ) : ViewModelProvider.Factory {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+            require(modelClass.isAssignableFrom(GameViewModel::class.java))
+            return GameViewModel(
+                preferencesRepository = preferencesRepository,
+                progressRepository = progressRepository,
+            ) as T
+        }
     }
 }
+
+private fun Difficulty.toEngineDifficulty(): EngineDifficulty = when (this) {
+    Difficulty.Easy -> EngineDifficulty.EASY
+    Difficulty.Medium -> EngineDifficulty.MEDIUM
+    Difficulty.Hard -> EngineDifficulty.HARD
+}
+
+private fun EngineMathQuestion.toUiQuestion(): MathQuestion = MathQuestion(
+    problem = problem,
+    answer = answer,
+    options = options,
+)
+
+private fun PlayerPreferences.toUiSettings(current: UserSettings): UserSettings = current.copy(
+    soundEffectsEnabled = soundEnabled,
+    soundEffectsVolume = soundVolume,
+    backgroundMusicEnabled = musicEnabled,
+    backgroundMusicVolume = musicVolume,
+    hapticFeedbackEnabled = hapticsEnabled,
+    difficulty = when (difficulty) {
+        EngineDifficulty.EASY -> Difficulty.Easy
+        EngineDifficulty.MEDIUM -> Difficulty.Medium
+        EngineDifficulty.HARD -> Difficulty.Hard
+    },
+    graphicsQuality = graphicsQuality,
+    reducedMotion = reducedMotion,
+)
+
+private fun UserSettings.toPlayerPreferences(): PlayerPreferences = PlayerPreferences(
+    soundEnabled = soundEffectsEnabled,
+    soundVolume = soundEffectsVolume,
+    musicEnabled = backgroundMusicEnabled,
+    musicVolume = backgroundMusicVolume,
+    hapticsEnabled = hapticFeedbackEnabled,
+    difficulty = difficulty.toEngineDifficulty(),
+    graphicsQuality = graphicsQuality,
+    reducedMotion = reducedMotion,
+)

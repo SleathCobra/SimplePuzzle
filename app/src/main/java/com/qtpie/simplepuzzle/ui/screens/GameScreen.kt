@@ -1,7 +1,7 @@
 package com.qtpie.simplepuzzle.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -16,19 +16,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qtpie.simplepuzzle.model.MathQuestion
 import com.qtpie.simplepuzzle.model.PuzzleInfo
-import com.qtpie.simplepuzzle.ui.components.JigsawBoard
+import com.qtpie.simplepuzzle.core.model.GraphicsQuality
+import com.qtpie.simplepuzzle.ui.components.GdxPuzzleBoard
 import com.qtpie.simplepuzzle.viewmodel.GameUiState
-import com.qtpie.simplepuzzle.viewmodel.SoundEffect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,10 +33,14 @@ fun GameScreen(
     state: GameUiState,
     totalCoins: Int,
     onAnswerSelected: (Int) -> Unit,
+    graphicsQuality: GraphicsQuality,
+    reducedMotion: Boolean,
+    onRevealFinished: (Int) -> Unit,
     onReset: () -> Unit,
     onBack: () -> Unit,
-    onSound: (SoundEffect) -> Unit
 ) {
+    BackHandler(onBack = onBack)
+
     val puzzle = state.currentPuzzle ?: return
 
     Scaffold(
@@ -145,21 +146,16 @@ fun GameScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(Color.Black.copy(alpha = 0.3f))
                     ) {
-                        JigsawBoard(
-                            rows = if (puzzle.totalPieces == 16) 4 else 5,
-                            cols = if (puzzle.totalPieces == 16) 4 else 6,
+                        GdxPuzzleBoard(
                             visiblePieces = state.unlockedPieces,
-                            shakeTrigger = state.shakeTrigger,
-                            onSound = onSound,
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            Image(
-                                painter = painterResource(id = puzzle.imageResId),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        }
+                            revealingPiece = state.revealingPiece,
+                            graphicsQuality = graphicsQuality,
+                            reducedMotion = reducedMotion,
+                            incorrectFeedbackTrigger = state.shakeTrigger,
+                            isCompleted = state.isGameOver,
+                            onRevealFinished = onRevealFinished,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                         
                         if (state.isGameOver) {
                             Box(
@@ -232,16 +228,10 @@ fun GameScreen(
 @Composable
 fun FlowingProgressBar(current: Int, total: Int) {
     val progress = if (total > 0) current.toFloat() / total else 0f
-    val infiniteTransition = rememberInfiniteTransition(label = "flow")
-    
-    val offset by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "offset"
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress,
+        animationSpec = tween(durationMillis = 350),
+        label = "puzzle-progress",
     )
 
     Box(
@@ -257,14 +247,12 @@ fun FlowingProgressBar(current: Int, total: Int) {
         // Progress Fill
         Box(
             modifier = Modifier
-                .fillMaxWidth(progress)
+                .fillMaxWidth(animatedProgress)
                 .fillMaxHeight()
                 .align(Alignment.CenterStart)
                 .background(
-                    Brush.linearGradient(
-                        colors = listOf(Color(0xFF00F2FE), Color(0xFF4FACFE), Color(0xFF00F2FE)),
-                        start = Offset(offset, 0f),
-                        end = Offset(offset + 400f, 400f)
+                    Brush.horizontalGradient(
+                        colors = listOf(Color(0xFF00F2FE), Color(0xFF4FACFE), Color(0xFF7B61FF)),
                     )
                 )
         )
